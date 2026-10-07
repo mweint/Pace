@@ -1,0 +1,68 @@
+Pace style guide and code ownership
+
+Keep the compact square design. Theme owns shared choices; views compose them;
+controls own field geometry. Do not create a parallel theme.
+
+Theme
+  Palette: semantic colors, process-private Pace Sans fonts, filled buttons.
+  Body 9pt; account names SemiBold 10.5pt; toolbar titles SemiBold 10pt.
+  All Font creation belongs here. Shared Segoe UI fallback handles missing assets;
+  self-tests verify the packaged families load without fallback.
+  Tray hover uses AccountFont for names and BodyFont for numbers, as cards do.
+  ThemedToolTip uses BodyFont and Palette colors for reset/error information.
+  Windows owns tooltip placement and timing, not typography or painting.
+  UiMetrics: logical dimensions at 96 DPI, spacing, targets and tooltip timing.
+  Component-specific field coordinates remain local.
+  Motion: 15ms frames; 200ms linear page crossfade; 260ms popup ease-out;
+  160ms reorder ease-out; 18px page travel. Respect Windows animation preference.
+
+Presentation
+  WidgetForm: shared font, borderless surface and border painting.
+  PageDialog: separate native pages; shared placement, animation, dismissal,
+  Escape and focus suppression. Never embed pages in UsagePanel.
+  PageNavigation: simultaneous exit and entrance in both directions. Pages slide
+  up on entry and down on Back; overview fades in place. Brief overlap is deliberate;
+  only the destination remains afterward.
+  UsagePanel owns the monitor for an open session. Refresh and navigation must
+  not reanchor to the moving pointer.
+  AccountsDialog: editor composition, debounced autosave and sign-in interactions.
+  AccountDetailsDialog: identity, returned allowances and reset information.
+  TrayHover: non-activating list; no separate hover font role.
+
+Controls
+  IconButton: unfilled Lucide button and keyboard focus cues. It intentionally
+  differs from filled text buttons. Suppress outgoing outlines.
+  AccountToggle: rectangular switch, BodyFont, Space support, keyboard-only focus.
+  AccountRow and AccountEditorRow own layout and consume shared theme/domain rules.
+  AccountDetailTip uses ThemedToolTip. Healthy cards have no extra tooltip.
+  ResetBadge shares the countdown line; amber warns within seven days. Missing
+  dates remain unavailable; identical expiries combine with a trailing count.
+  AnimatedAccountList owns reorder interpolation and saved row order.
+  TrayDrawing uses native taskbar size and whole-pixel equal-width lines. Stronger
+  blue is only for the tray; gray means unavailable/stale.
+
+Logic and infrastructure
+  PaceMath solely owns baseline, classification and labels. Inclusive tolerance:
+  -4 through +2 percentage points. Palette maps classifications to colors.
+  Each account uses its actual allowance period/reset. Ahead hours measure the
+  current gap, rounded to approximate whole hours, not a forecast.
+  BankedResets owns availability, expiry grouping and seven-day warnings.
+  AccountRules owns the four-account limit.
+  Settings owns names, visibility, order, removal and atomic persistence.
+  Providers partial files separate discovery, parsing, limits, resets and fetching.
+  SignIn owns invisible official CLI login and discards potentially sensitive output.
+  NativeTrayIcon owns registration and suppresses native tooltip text.
+  TrayApp coordinates refresh and views with one active-page reference.
+  Preserve old readings on failed refreshes; fetch sequentially to avoid bursts.
+  AppTiming and TrayToggle own refresh cadence and tray click decisions.
+
+Verification and repository contents
+  Program selects modes only. Diagnostics separates typography, pace, provider,
+  editing, layout, navigation, preview and live checks.
+  Build and offline tests verify lifecycle refactors. Render visual changes.
+  Do not call authenticated endpoints to verify a layout/theme cleanup.
+  scripts/Verify-Repository.ps1 scans the index for local data, suspected secrets,
+  oversized files and theme ownership violations.
+  Commit source and required assets only. Exclude credentials, settings,
+  environments, generated previews/reports and builds.
+  Preserve asset licenses and reference SVGs. Follow .editorconfig.

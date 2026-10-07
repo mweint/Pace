@@ -1,0 +1,21 @@
+bin/
+obj/
+app/
+dist/
+*.user
+/*.png
+/*-check.json
+/self-test.json
+/live-check.json
+
+# Local secrets and sign-in state never belong in the source repository.
+.env
+.env.*
+*.key
+*.pem
+*.pfx
+*.p12
+auth.json
+.credentials.json
+settings.json
+retry-times.json

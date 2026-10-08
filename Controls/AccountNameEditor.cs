@@ -1,150 +1,96 @@
-namespace Usage;
+namespace Pace;
 
-public sealed class AccountNameEditor : Panel
+public sealed class AccountNameEditor : PaintedPanel
 {
     readonly string fallback;
     readonly IconButton confirm = new("confirm", "Save display name");
     string alias;
-    bool editing;
-    bool hovered;
-    public TextBox Input { get; }
+    readonly FocusCue focus;
+    public TextBox Input { get; } = new();
     public string Alias => alias;
-    public bool IsEditing => editing;
+    public bool IsEditing { get; private set; }
     public event Action? Committed;
     public event Action? EditingChanged;
-
     public AccountNameEditor(string alias, string fallback)
     {
-        this.alias = alias;
-        this.fallback = fallback;
-        BackColor = Palette.SectionBackground;
+        this.alias = alias; this.fallback = fallback;
         Height = UiMetrics.NameEditorHeight;
-        TabStop = true;
-        Cursor = Cursors.Hand;
-        Input = new CompletionInput(FinishEditing)
+        Focusable = true; Cursor = new Cursor(StandardCursorType.Hand);
+        focus = new(this);
+        Palette.ConfigureInput(Input);
+        Input.Text = DisplayName();
+        Input.IsVisible = false;
+        confirm.IsVisible = false;
+        Children.Add(Input); Children.Add(confirm);
+        Input.KeyDown += (_, e) =>
         {
-            Text = DisplayName(), ReadOnly = true, BorderStyle = BorderStyle.None,
-            BackColor = Palette.SectionBackground, ForeColor = Palette.Text,
-            Font = Palette.AccountFont(), Cursor = Cursors.Hand,
-            AccessibleName = "Display name", Visible = false
+            if (e.Key is not (Key.Enter or Key.Escape)) return;
+            FinishEditing(e.Key == Key.Enter); e.Handled = true;
         };
-        Input.Leave += (_, _) => FinishEditing(true);
-        MouseClick += (_, _) => { BeginEditing(); Input.Focus(); };
-        confirm.BackColor = Palette.SectionBackground;
-        confirm.Visible = false;
+        Input.LostFocus += (_, _) => { if (IsEditing) FinishEditing(true); };
         confirm.Click += (_, _) => FinishEditing(true);
-        Controls.AddRange([Input, confirm]);
-        SizeChanged += (_, _) => Arrange();
-        Arrange();
+        Avalonia.Automation.AutomationProperties.SetName(this, "Display name");
+        Input.PlaceholderText = "Display name";
+        PropertyChanged += (_, _) => InvalidateVisual();
     }
-
     string DisplayName() => string.IsNullOrWhiteSpace(alias) ? fallback : alias;
-
-    void Arrange()
-    {
-        int fieldWidth = Width - UiMetrics.IconButtonSize - UiMetrics.CardGap;
-        Input.SetBounds(UiMetrics.CardGap, (Height - Input.PreferredHeight) / 2,
-            Math.Max(1, fieldWidth - 2 * UiMetrics.CardGap), Input.PreferredHeight);
-        confirm.SetBounds(Width - UiMetrics.IconButtonSize, (Height - UiMetrics.IconButtonSize) / 2,
-            UiMetrics.IconButtonSize, UiMetrics.IconButtonSize);
-    }
-
     public void BeginEditing()
     {
-        if (editing)
-            return;
-        editing = true;
-        Input.ReadOnly = false;
-        Input.Visible = true;
-        Input.Cursor = Cursors.IBeam;
-        confirm.Visible = true;
-        Arrange();
-        Invalidate();
-        EditingChanged?.Invoke();
+        if (IsEditing) return;
+        IsEditing = true;
+        Input.Text = DisplayName();
+        Input.IsVisible = confirm.IsVisible = true;
+        Input.SelectionStart = Input.SelectionEnd = 0;
+        Input.Focus();
+        InvalidateVisual(); EditingChanged?.Invoke();
     }
-
     public void FinishEditing(bool save)
     {
-        if (!editing)
-            return;
-        bool changed = save && alias != Input.Text.Trim();
-        if (save)
-            alias = Input.Text.Trim();
-        editing = false;
+        if (!IsEditing) return;
+        string value = Input.Text?.Trim() ?? "";
+        bool changed = save && alias != value;
+        if (save) alias = value;
+        IsEditing = false;
+        Input.IsVisible = confirm.IsVisible = false;
         Input.Text = DisplayName();
-        Input.ReadOnly = true;
-        Input.Visible = false;
-        Input.Cursor = Cursors.Hand;
-        Input.Select(0, 0);
-        confirm.Visible = false;
-        Arrange();
-        Invalidate();
-        if (changed)
-            Committed?.Invoke();
+        Input.SelectionStart = Input.SelectionEnd = 0;
+        InvalidateVisual();
+        if (changed) Committed?.Invoke();
         EditingChanged?.Invoke();
     }
-
-    protected override void OnPaint(PaintEventArgs e)
+    protected override void OnPointerPressed(PointerPressedEventArgs e)
     {
-        base.OnPaint(e);
-        if (!editing)
-        {
-            TextRenderer.DrawText(e.Graphics, DisplayName(), Input.Font,
-                new Rectangle(Input.Left, 0, Input.Width, Height), Palette.Text,
-                TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine | TextFormatFlags.NoPadding | TextFormatFlags.EndEllipsis);
-        }
-        Color border = Palette.InputOutline(editing, hovered || (Focused && ShowFocusCues));
-        using var edge = new Pen(border, UiMetrics.BorderWidth);
-        e.Graphics.DrawRectangle(edge, 0, 0, Width - UiMetrics.IconButtonSize - UiMetrics.CardGap - UiMetrics.BorderWidth, Height - UiMetrics.BorderWidth);
+        // A confirm press can first commit through the input's lost-focus handler.
+        // Do not reopen editing when that same press bubbles from a child control.
+        if (e.Source == this && !IsEditing && e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) { BeginEditing(); e.Handled = true; }
+        base.OnPointerPressed(e);
     }
-
-    protected override void OnMouseEnter(EventArgs e)
-    {
-        hovered = true;
-        Invalidate();
-        base.OnMouseEnter(e);
-    }
-
-    protected override void OnMouseLeave(EventArgs e)
-    {
-        hovered = false;
-        Invalidate();
-        base.OnMouseLeave(e);
-    }
-
-    protected override void OnGotFocus(EventArgs e)
-    {
-        Invalidate();
-        base.OnGotFocus(e);
-    }
-
-    protected override void OnLostFocus(EventArgs e)
-    {
-        Invalidate();
-        base.OnLostFocus(e);
-    }
-
     protected override void OnKeyDown(KeyEventArgs e)
     {
-        if (e.KeyCode is Keys.Enter or Keys.Space)
-        {
-            BeginEditing();
-            Input.Focus();
-            e.Handled = true;
-        }
+        if (!IsEditing && e.Key is Key.Enter or Key.Space) { BeginEditing(); e.Handled = true; }
         base.OnKeyDown(e);
     }
-
-    sealed class CompletionInput(Action<bool> finish) : TextBox
+    protected override Size MeasureOverride(Size availableSize)
     {
-        protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+        Input.Measure(new Size(Math.Max(1, availableSize.Width - UiMetrics.IconButtonSize - 3 * UiMetrics.CardGap), Height));
+        confirm.Measure(new Size(UiMetrics.IconButtonSize, UiMetrics.IconButtonSize));
+        return new(availableSize.Width, Height);
+    }
+    protected override Size ArrangeOverride(Size finalSize)
+    {
+        double textHeight = Palette.TextHeight(true, Palette.AccountSize);
+        Input.Arrange(new Rect(UiMetrics.CardGap, (finalSize.Height - textHeight) / 2, Math.Max(1, finalSize.Width - UiMetrics.IconButtonSize - 3 * UiMetrics.CardGap), textHeight));
+        confirm.Arrange(new Rect(finalSize.Width - UiMetrics.IconButtonSize, (finalSize.Height - UiMetrics.IconButtonSize) / 2, UiMetrics.IconButtonSize, UiMetrics.IconButtonSize));
+        return finalSize;
+    }
+    protected override void DrawSurface(DrawingContext context)
+    {
+        double width = Math.Max(1, Bounds.Width - UiMetrics.IconButtonSize - UiMetrics.CardGap);
+        context.DrawRectangle(null, new Pen(Palette.Brush(Palette.InputOutline(IsEditing, IsPointerOver || IsFocused && focus.Visible)), UiMetrics.BorderWidth), new Rect(.5, .5, width - 1, Bounds.Height - 1));
+        if (!IsEditing)
         {
-            if (!ReadOnly && keyData is Keys.Enter or Keys.Escape)
-            {
-                finish(keyData == Keys.Enter);
-                return true;
-            }
-            return base.ProcessCmdKey(ref msg, keyData);
+            var text = Palette.Line(DisplayName(), Palette.Text, width - 2 * UiMetrics.CardGap, Palette.AccountSize, true);
+            context.DrawText(text, new Point(UiMetrics.CardGap, Math.Round((Bounds.Height - text.Height) / 2)));
         }
     }
 }

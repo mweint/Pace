@@ -1,56 +1,32 @@
-namespace Usage;
+namespace Pace;
 
 internal sealed class ResetBadge : Control
 {
-    readonly Bitmap artwork = IconButton.LoadArtwork("refresh-cw");
-    readonly AccountDetailTip tip;
     BankedResets? bank;
     bool stale;
     public ResetBadge()
     {
-        DoubleBuffered = true;
-        BackColor = Palette.SectionBackground;
-        Size = new Size(UiMetrics.ResetBadgeWidth, UiMetrics.ResetBadgeHeight);
-        tip = new AccountDetailTip(this);
+        Width = UiMetrics.ResetBadgeWidth;
+        Height = UiMetrics.ResetBadgeHeight;
     }
-
-    public void UpdateBank(BankedResets? value, bool stale)
+    public void UpdateBank(BankedResets? value, bool isStale)
     {
-        bank = value;
-        this.stale = stale;
+        bank = value; stale = isStale;
         var now = DateTimeOffset.UtcNow;
-        Visible = bank?.Available(now) > 0;
-        AccessibleName = bank == null ? "" : $"{bank.Available(now)} banked resets";
-        tip.Text = bank == null ? "" : bank.Details(now) + (stale ? "\nLast known reset information" : "");
-        Invalidate();
+        IsVisible = bank?.Available(now) > 0;
+        Avalonia.Automation.AutomationProperties.SetName(this, bank == null ? "" : $"{bank.Available(now)} banked resets");
+        ThemedToolTip.Set(this, bank == null ? "" : bank.Details(now) + (stale ? "\nLast known reset information" : ""));
+        InvalidateVisual();
     }
-
-    protected override void OnPaint(PaintEventArgs e)
+    public override void Render(DrawingContext context)
     {
-        base.OnPaint(e);
-        if (bank == null)
-            return;
-        float scale = DeviceDpi / (float)UiMetrics.BaseDpi;
-        e.Graphics.ScaleTransform(scale, scale);
+        if (bank == null) return;
         var now = DateTimeOffset.UtcNow;
-        Color ink = !stale && bank.ExpiringSoon(now) ? Palette.Warning : Palette.Muted;
-        IconButton.DrawArtwork(e.Graphics, artwork, new Rectangle(UiMetrics.ResetBadgeIconInset,
-            (UiMetrics.ResetBadgeHeight - UiMetrics.ResetBadgeIconSize) / 2, UiMetrics.ResetBadgeIconSize, UiMetrics.ResetBadgeIconSize), ink);
-        using var font = Palette.BodyFont();
-        using var brush = new SolidBrush(ink);
-        e.Graphics.DrawString(bank.Available(now).ToString(), font, brush,
-            UiMetrics.ResetBadgeIconInset + UiMetrics.ResetBadgeIconSize + UiMetrics.ResetBadgeTextGap,
-            (UiMetrics.ResetBadgeHeight - font.GetHeight(UiMetrics.BaseDpi)) / 2);
-    }
-
-    protected override void Dispose(bool disposing)
-    {
-        if (disposing)
-        {
-            artwork.Dispose();
-            tip.Dispose();
-        }
-
-        base.Dispose(disposing);
+        var ink = !stale && bank.ExpiringSoon(now) ? Palette.Warning : Palette.Muted;
+        IconArtwork.Draw(context, "refresh-cw", new Rect(UiMetrics.ResetBadgeIconInset,
+            (UiMetrics.ResetBadgeHeight - UiMetrics.ResetBadgeIconSize) / 2d, UiMetrics.ResetBadgeIconSize, UiMetrics.ResetBadgeIconSize), ink);
+        var text = Palette.Format(bank.Available(now).ToString(), ink);
+        context.DrawText(text, new Point(UiMetrics.ResetBadgeIconInset + UiMetrics.ResetBadgeIconSize + UiMetrics.ResetBadgeTextGap,
+            Math.Round((UiMetrics.ResetBadgeHeight - text.Height) / 2)));
     }
 }

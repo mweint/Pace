@@ -1,7 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
-namespace Usage;
+namespace Pace;
 
 internal static class ProviderChecks
 {

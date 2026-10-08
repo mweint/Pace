@@ -1,7 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
-namespace Usage;
+namespace Pace;
 
 internal static class PaceChecks
 {
@@ -25,7 +25,7 @@ internal static class PaceChecks
         Check(PaceMath.HoverSummary(p) == "+7% · 12h" && PaceMath.HoverSummary(other) == "-18%" && PaceMath.HoverSummary(upperEdge) == "+2%", "Hover adds whole hours only above pace, without an ahead suffix");
         Check(PaceMath.Calculate(new(50, now, TimeSpan.FromDays(7)), now) == null, "Expired windows have no current pace");
         Check(PaceMath.Calculate(new(50, now.AddDays(8), TimeSpan.FromDays(7)), now) == null, "Future-start windows have no current pace");
-        var exhausted = new Window(100, now.AddMinutes(4), TimeSpan.FromHours(5));
+        var exhausted = new UsageWindow(100, now.AddMinutes(4), TimeSpan.FromHours(5));
         Check(PaceMath.Classify(PaceMath.Calculate(exhausted, now)) == PaceState.OnPace &&
             PaceMath.Classify(exhausted, now) == PaceState.Exhausted &&
             PaceMath.Compact(exhausted, now) == "limit reached" && Palette.Status(exhausted, now) == Palette.Warning,

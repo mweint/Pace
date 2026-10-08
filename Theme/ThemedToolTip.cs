@@ -1,34 +1,35 @@
-namespace Usage;
-// Native tooltip timing and placement, with the same typography and colors as the app.
-internal sealed class ThemedToolTip : ToolTip
+namespace Pace;
+
+internal static class ThemedToolTip
 {
-    public ThemedToolTip()
+    static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Control, Lifetime> lifetimes = new();
+    sealed class Lifetime
     {
-        OwnerDraw = true;
-        InitialDelay = ReshowDelay = UiMetrics.DetailDelayMilliseconds;
-        AutoPopDelay = UiMetrics.DetailDurationMilliseconds;
-        UseAnimation = UseFading = false;
-        Popup += (_, e) =>
+        readonly DispatcherTimer timer = new() { Interval = TimeSpan.FromMilliseconds(UiMetrics.DetailDurationMilliseconds) };
+        public Lifetime(Control control)
         {
-            if (e.AssociatedControl is not { } owner)
-                return;
-            using var font = Palette.BodyFont();
-            using var graphics = Graphics.FromHwnd(owner.Handle);
-            int inset = (int)Math.Ceiling(UiMetrics.TooltipInset * owner.DeviceDpi / (double)UiMetrics.BaseDpi);
-            int width = (int)Math.Ceiling(UiMetrics.TooltipMaxWidth * owner.DeviceDpi / (double)UiMetrics.BaseDpi);
-            var size = graphics.MeasureString(GetToolTip(owner), font, width - 2 * inset);
-            e.ToolTipSize = new Size((int)Math.Ceiling(size.Width) + 2 * inset, (int)Math.Ceiling(size.Height) + 2 * inset);
-        };
-        Draw += (_, e) =>
+            timer.Tick += (_, _) => { timer.Stop(); ToolTip.SetIsOpen(control, false); };
+            control.PropertyChanged += (_, e) =>
+            {
+                if (e.Property != ToolTip.IsOpenProperty) return;
+                timer.Stop();
+                if (ToolTip.GetIsOpen(control)) timer.Start();
+            };
+            control.DetachedFromVisualTree += (_, _) => timer.Stop();
+        }
+    }
+    public static void Set(Control control, string text, int delay = UiMetrics.DetailDelayMilliseconds)
+    {
+        lifetimes.GetValue(control, c => new Lifetime(c));
+        ToolTip.SetShowDelay(control, delay);
+        // Native ReshowDelay was also 1000ms; always retain the initial delay.
+        ToolTip.SetBetweenShowDelay(control, -1);
+        ToolTip.SetTip(control, string.IsNullOrWhiteSpace(text) ? null : new Border
         {
-            using var font = Palette.BodyFont();
-            using var background = new SolidBrush(Palette.Background);
-            using var text = new SolidBrush(Palette.Text);
-            using var border = new Pen(Palette.WindowBorder, UiMetrics.BorderWidth);
-            e.Graphics.FillRectangle(background, e.Bounds);
-            e.Graphics.DrawRectangle(border, e.Bounds.X, e.Bounds.Y, e.Bounds.Width - UiMetrics.BorderWidth, e.Bounds.Height - UiMetrics.BorderWidth);
-            float inset = UiMetrics.TooltipInset * e.Graphics.DpiX / (float)UiMetrics.BaseDpi;
-            e.Graphics.DrawString(e.ToolTipText, font, text, new RectangleF(e.Bounds.X + inset, e.Bounds.Y + inset, e.Bounds.Width - 2 * inset, e.Bounds.Height - 2 * inset));
-        };
+            Background = Palette.Brush(Palette.Background), BorderBrush = Palette.Brush(Palette.WindowBorder),
+            BorderThickness = new Thickness(UiMetrics.BorderWidth), Padding = new Thickness(UiMetrics.TooltipInset - UiMetrics.BorderWidth), MaxWidth = UiMetrics.TooltipMaxWidth,
+            Child = new TextBlock { Text = text, FontFamily = Palette.FontFamily, FontSize = Palette.BodySize,
+                Foreground = Palette.Brush(Palette.Text), TextWrapping = TextWrapping.Wrap }
+        });
     }
 }

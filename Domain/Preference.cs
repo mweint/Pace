@@ -1,6 +1,4 @@
-using System.Text.Json;
-
-namespace Usage;
+namespace Pace;
 
 public sealed class Preference
 {
@@ -12,4 +10,9 @@ public sealed class Preference
     public bool Tray { get; set; } = true;
     public bool ShowFiveHour { get; set; } = true;
     public bool ShowFable { get; set; } = true;
+
+    // Claude's five-hour and Fable limits can appear as compact bars under the weekly bar.
+    public static bool ShowsBar(Preference? preference, Account account, UsageLimit limit) =>
+        account.Service == Services.Claude &&
+        (limit.IsSession ? preference?.ShowFiveHour != false : limit.IsFable && preference?.ShowFable != false);
 }

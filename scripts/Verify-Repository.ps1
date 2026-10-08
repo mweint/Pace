@@ -33,7 +33,8 @@ foreach ($file in $files) {
     }
     if ($extension -eq '.cs') {
         if ($lines.Count -gt 350) { $issues.Add("Review responsibility: $file exceeds 350 lines") }
-        if (!$file.StartsWith('Theme/') -and $text -match 'new\s+(?:System\.Drawing\.)?Font\s*\(|Color\.FromArgb\s*\(') {
+        $view = $file -match '^(Application|Controls|Views)/'
+        if ($view -and $text -match 'Color\.(?:From\w+|Parse)\s*\(|new\s+(?:Immutable)?SolidColorBrush\b|new\s+(?:FontFamily|Typeface|Pen)\s*\(\s*"|Brushes\.(?!Transparent)') {
             $issues.Add("Theme definition outside Theme: $file")
         }
         if (!$file.StartsWith('Theme/') -and $text -match 'new\s+ToolTip\b|:\s*ToolTip\b') {

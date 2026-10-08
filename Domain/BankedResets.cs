@@ -1,4 +1,4 @@
-namespace Usage;
+namespace Pace;
 
 public sealed record ResetGrant(int Count, DateTimeOffset? Expires);
 public sealed record BankedResets(int Count, List<ResetGrant>? Grants)

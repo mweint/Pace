@@ -1,288 +1,165 @@
-using System.Drawing.Drawing2D;
+using Avalonia.Controls.ApplicationLifetimes;
 
-namespace Usage;
+namespace Pace;
 
-public sealed class TrayApp : ApplicationContext
+public sealed class TrayApp : IDisposable
 {
-    readonly NativeTrayIcon tray = new()
-    {
-        Visible = true
-    };
+    readonly IClassicDesktopStyleApplicationLifetime lifetime;
+    readonly TrayService tray = new();
     readonly UsagePanel panel = new();
     readonly TrayHover hover = new();
-    readonly System.Windows.Forms.Timer hoverTimer = new()
-    {
-        Interval = AppTiming.HoverPollMilliseconds
-    };
-    Point hoverAnchor;
-    Rectangle hoverIconBounds;
-    long hoverStarted;
-    long suppressHoverUntil;
-    bool hoverPending;
-    readonly System.Windows.Forms.Timer timer = new()
-    {
-        Interval = AppTiming.PaceRefreshMilliseconds
-    };
+    readonly PageNavigation navigation;
     readonly Settings settings = Settings.Load();
     readonly AppUpdates updates;
-    readonly System.Windows.Forms.Timer updateTimer = new() { Interval = AppTiming.UpdateCheckMilliseconds };
+    readonly DispatcherTimer timer = new() { Interval = TimeSpan.FromMilliseconds(AppTiming.PaceRefreshMilliseconds) };
+    readonly DispatcherTimer updateTimer = new() { Interval = TimeSpan.FromMilliseconds(AppTiming.UpdateCheckMilliseconds) };
+    readonly DispatcherTimer hoverTimer = new() { Interval = TimeSpan.FromMilliseconds(AppTiming.HoverPollMilliseconds) };
     List<Reading> readings = [];
-    bool busy;
-    bool signingIn;
-    bool exiting;
-    PageDialog? activePage;
+    Task? refreshing;
+    bool busy, refreshQueued, signingIn, exiting, hoverPending;
+    long hoverStarted, suppressHoverUntil;
+    PixelPoint hoverAnchor;
+    PixelRect hoverBounds;
     int ticks;
-    public TrayApp()
+    public TrayApp(IClassicDesktopStyleApplicationLifetime lifetime)
     {
+        this.lifetime = lifetime;
+        navigation = new(panel);
         updates = new(settings);
         updates.Changed += () => { if (!exiting) panel.UpdateNotification(updates.Notify); };
-        updateTimer.Tick += async (_, _) => await updates.Check();
-        updateTimer.Start();
-        tray.Icon = TrayDrawing.Icon([]);
-        var menu = new ContextMenuStrip();
-        menu.Items.Add("Show Pace", null, (_, _) =>
+        navigation.Changed += Render;
+        tray.Update([]);
+        tray.Clicked += () =>
         {
-            if (activePage == null)
-                panel.OpenNearTray();
-        });
-        menu.Items.Add("Refresh", null, async (_, _) => await Refresh());
-        menu.Items.Add("Settings…", null, (_, _) => EditAccounts());
-        menu.Items.Add(new ToolStripSeparator());
-        menu.Items.Add("Quit", null, (_, _) => ExitThread());
-        tray.ContextMenuStrip = menu;
-        tray.MouseMove += (_, _) =>
+            HideHover();
+            if (navigation.ActivePage != null) navigation.DismissAll();
+            else if (TrayToggle.ShouldClose(panel.IsVisible, panel.LastAutoHide, Environment.TickCount64)) panel.Dismiss();
+            else panel.OpenNearTray();
+        };
+        tray.MenuSelected += command =>
         {
-            if (Environment.TickCount64 < suppressHoverUntil || panel.Visible || panel.EditingAccounts)
-                return;
-            if (!hoverPending)
+            HideHover();
+            switch (command)
             {
-                hoverStarted = Environment.TickCount64;
-                hoverAnchor = Cursor.Position;
-                hoverIconBounds = tray.Bounds ?? new Rectangle(hoverAnchor, Size.Empty);
-                hoverPending = true;
+                case 1: if (navigation.ActivePage is { } page) page.Activate(); else panel.OpenNearTray(); break;
+                case 2: _ = Refresh(); break;
+                case 3: EditAccounts(); break;
+                case 4: lifetime.Shutdown(); break;
             }
+        };
+        tray.Hovered += () =>
+        {
+            if (hoverPending || panel.IsVisible || navigation.ActivePage != null || Environment.TickCount64 < suppressHoverUntil) return;
+            if (DesktopIntegration.Pointer is not { } pointer) return;
+            hoverStarted = Environment.TickCount64; hoverAnchor = pointer;
+            hoverBounds = tray.Bounds ?? new PixelRect(pointer, new PixelSize(0, 0));
+            hoverPending = true;
         };
         hoverTimer.Tick += (_, _) =>
         {
-            if (!hoverPending)
-                return;
-            var pointer = Cursor.Position;
-            bool nearIcon = Math.Abs(pointer.X - hoverAnchor.X) <= 22 && Math.Abs(pointer.Y - hoverAnchor.Y) <= 22;
-            if (panel.Visible || panel.EditingAccounts || (!nearIcon && !hover.Bounds.Contains(pointer)))
-            {
-                hover.Hide();
-                hoverPending = false;
-                return;
-            }
-
-            if (!hover.Visible && Environment.TickCount64 - hoverStarted >= UiMetrics.HoverDelayMilliseconds)
-                hover.Open(hoverIconBounds);
-        };
-        hoverTimer.Start();
-        menu.Opening += (_, _) =>
-        {
-            hover.Hide();
-            hoverPending = false;
-            suppressHoverUntil = Environment.TickCount64 + AppTiming.HoverSuppressMilliseconds;
-        };
-        tray.MouseClick += (_, e) =>
-        {
-            hover.Hide();
-            hoverPending = false;
-            suppressHoverUntil = Environment.TickCount64 + AppTiming.HoverSuppressMilliseconds;
-            if (e.Button != MouseButtons.Left)
-                return;
-            if (activePage != null)
-            {
-                activePage.DismissAll();
-                panel.Dismiss();
-                return;
-            }
-
-            // Windows deactivates the popup before delivering the tray click. Treat that click as close.
-            if (TrayToggle.ShouldClose(panel.Visible, panel.LastAutoHide, Environment.TickCount64))
-                panel.Dismiss();
-            else
-                panel.OpenNearTray();
+            if (!hoverPending || DesktopIntegration.Pointer is not { } pointer) return;
+            bool near = Math.Abs(pointer.X - hoverAnchor.X) <= UiMetrics.HoverPointerTolerance && Math.Abs(pointer.Y - hoverAnchor.Y) <= UiMetrics.HoverPointerTolerance;
+            var hoverRect = new PixelRect(hover.Position, new PixelSize((int)(hover.Width * hover.RenderScaling), (int)(hover.Height * hover.RenderScaling)));
+            if (panel.IsVisible || navigation.ActivePage != null || (!near && !hoverRect.Contains(pointer))) { HideHover(); return; }
+            if (!hover.IsVisible && Environment.TickCount64 - hoverStarted >= UiMetrics.HoverDelayMilliseconds) hover.Open(hoverBounds);
         };
         panel.RefreshRequested += async () => await Refresh();
         panel.SettingsRequested += () => EditAccounts();
         panel.ManageAccountsRequested += () => EditAccounts(false);
         panel.AccountRequested += OpenDetails;
         panel.AddAccountRequested += async service => await AddAccount(service);
-        timer.Tick += async (_, _) =>
-        {
-            Render();
-            if (++ticks % AppTiming.UsageRefreshTicks == 0)
-                await Refresh();
-        };
-        timer.Start();
-        _ = Refresh();
-        _ = updates.Check();
+        timer.Tick += async (_, _) => { Render(); if (++ticks % AppTiming.UsageRefreshTicks == 0) await Refresh(); };
+        updateTimer.Tick += async (_, _) => await updates.Check();
+        timer.Start(); updateTimer.Start(); hoverTimer.Start();
+        _ = Refresh(); _ = updates.Check();
         panel.OpenNearTray();
     }
-
+    void HideHover() { hover.Hide(); hoverPending = false; suppressHoverUntil = Environment.TickCount64 + AppTiming.HoverSuppressMilliseconds; }
     List<Reading> Ordered() => readings.Where(r => !settings.IsRemoved(r.Account)).OrderBy(r => settings.Accounts.FindIndex(p => p.Key == r.Account.Key)).ToList();
     async Task AddAccount(string service)
     {
-        if (exiting || signingIn)
-            return;
-        signingIn = true;
-        panel.UpdateSignIn(true, "Complete sign-in in your browser…");
+        if (exiting || signingIn) return;
+        signingIn = true; panel.UpdateSignIn(true, "Complete sign-in in your browser…");
         try
         {
             await SignIn.Begin(service, settings);
-            if (exiting)
-                return;
+            if (exiting) return;
             await Refresh();
-            if (exiting)
-                return;
+            if (exiting) return;
             panel.UpdateSignIn(false, Ordered().Count == 0 ? "No sign-in found. Please try again." : "");
-            if (!panel.Visible && activePage == null)
-                panel.OpenNearTray(newSession: false);
+            if (!panel.IsVisible && navigation.ActivePage == null) panel.OpenNearTray(false);
         }
-        catch (Exception e)
-        {
-            if (!exiting)
-                panel.UpdateSignIn(false, e is InvalidOperationException ? e.Message : "Sign-in failed. Please try again.");
-        }
-        finally
-        {
-            signingIn = false;
-        }
+        catch (Exception e) { if (!exiting) panel.UpdateSignIn(false, e is InvalidOperationException ? e.Message : "Sign-in failed. Please try again."); }
+        finally { signingIn = false; }
     }
-
-    async Task Refresh()
+    // One refresh at a time. A request during a refresh runs once more afterward,
+    // and callers awaiting either request see the final result.
+    Task Refresh()
     {
-        if (exiting || busy)
-            return;
+        if (exiting) return Task.CompletedTask;
+        if (refreshing != null) { refreshQueued = true; return refreshing; }
+        var task = RefreshLoop();
+        if (!task.IsCompleted) refreshing = task;
+        return task;
+    }
+    async Task RefreshLoop()
+    {
         busy = true;
         try
         {
-            var accounts = Providers.Discover(settings);
-            foreach (var a in accounts)
-                settings.For(a);
-            readings = accounts.Select(a => readings.FirstOrDefault(r => r.Account.Key == a.Key) ?? new Reading(a, null, "Refreshing…", DateTimeOffset.UtcNow)).ToList();
-            Render();
-            // Sequential requests avoid unnecessary bursts against subscription endpoints.
-            foreach (var a in accounts)
-            {
-                var fetched = await Providers.Fetch(a);
-                if (exiting)
-                    return;
-                var old = readings.First(r => r.Account.Key == a.Key);
-                if (fetched.Error != null && old.Weekly != null)
-                    fetched = old with
-                    {
-                        Error = fetched.Error,
-                        ConnectionIssue = fetched.ConnectionIssue
-                    };
-                else if (fetched.ResetError != null && old.Resets?.Grants != null && fetched.Resets?.Count == old.Resets.Count)
-                    fetched = fetched with
-                    {
-                        Resets = old.Resets
-                    };
-                readings[readings.FindIndex(r => r.Account.Key == a.Key)] = fetched;
-                Render();
-            }
-
-            settings.Save();
+            do { refreshQueued = false; await RefreshOnce(); }
+            while (refreshQueued && !exiting);
         }
-        finally
-        {
-            busy = false;
-            Render();
-        }
+        finally { busy = false; refreshing = null; Render(); }
     }
-
+    async Task RefreshOnce()
+    {
+        var accounts = await Providers.Discover(settings);
+        if (exiting) return;
+        readings = accounts.Select(a => readings.FirstOrDefault(r => r.Account.Key == a.Key) ?? new Reading(a, null, "Refreshing…", DateTimeOffset.UtcNow)).ToList();
+        Render();
+        foreach (var account in accounts)
+        {
+            var fetched = await Providers.Fetch(account);
+            if (exiting) return;
+            int index = readings.FindIndex(r => r.Account.Key == account.Key);
+            if (index < 0 || settings.IsRemoved(account)) continue;
+            var old = readings[index];
+            if (fetched.Error != null && old.Weekly != null) fetched = old with { Error = fetched.Error, ConnectionIssue = fetched.ConnectionIssue };
+            else if (fetched.ResetError != null && old.Resets?.Grants != null && fetched.Resets?.Count == old.Resets.Count) fetched = fetched with { Resets = old.Resets };
+            readings[index] = fetched; Render();
+        }
+        settings.TrySave();
+    }
     void Render()
     {
-        if (exiting || panel.IsDisposed || panel.Disposing)
-            return;
+        if (exiting) return;
         var ordered = Ordered();
         var selected = ordered.Where(r => settings.For(r.Account) is { Show: true, Tray: true }).Take(AccountRules.MaxTrayAccounts).ToList();
-        var old = tray.Icon;
-        tray.Icon = TrayDrawing.Icon(selected);
-        old?.Dispose();
-        hover.UpdateEntries(selected, settings);
+        tray.Update(selected); hover.UpdateEntries(selected, settings);
         panel.UpdateRows(ordered, settings, busy);
-        if (activePage is AccountsDialog accountsDialog)
-            accountsDialog.UpdateConnections(ordered);
-        if (activePage is AccountDetailsDialog details && ordered.FirstOrDefault(reading => reading.Account.Key == details.AccountKey) is { } detailReading)
-            details.UpdateReading(detailReading, settings, busy);
+        if (navigation.ActivePage is AccountsDialog accounts) accounts.UpdateConnections(ordered);
+        if (navigation.ActivePage is AccountDetailsDialog details && ordered.FirstOrDefault(r => r.Account.Key == details.AccountKey) is { } reading)
+            details.UpdateReading(reading, settings, busy);
     }
-
     void OpenDetails(Account account)
     {
-        if (activePage != null)
-            return;
-        var reading = Ordered().FirstOrDefault(item => item.Account.Key == account.Key);
-        if (reading == null)
-            return;
-        using var dialog = new AccountDetailsDialog(reading, settings);
-        dialog.RefreshRequested += async () => await Refresh();
-        ShowPage(dialog);
+        if (navigation.ActivePage != null || Ordered().FirstOrDefault(r => r.Account.Key == account.Key) is not { } reading) return;
+        var page = new AccountDetailsDialog(reading, settings);
+        page.RefreshRequested += async () => await Refresh();
+        HideHover(); navigation.Show(page);
     }
-
     void EditAccounts(bool showGeneral = true)
     {
-        if (activePage != null)
-        {
-            activePage.Activate();
-            return;
-        }
-
-        using var dialog = new AccountsDialog(Ordered(), settings, () =>
-        {
-            _ = Refresh();
-        }, changed: Render, updates: updates, installUpdate: () =>
-        {
-            if (updates.Install()) ExitThread();
-        }, showGeneral: showGeneral);
-        ShowPage(dialog);
+        if (navigation.ActivePage is { } active) { active.Activate(); return; }
+        HideHover();
+        navigation.Show(new AccountsDialog(Ordered(), settings, () => _ = Refresh(), changed: Render,
+            updates: updates, installUpdate: () => { if (updates.Install()) lifetime.Shutdown(); }, showGeneral: showGeneral));
     }
-
-    void ShowPage(PageDialog dialog)
+    public void Dispose()
     {
-        if (exiting)
-            return;
-        panel.EditingAccounts = true;
-        if (!panel.Visible)
-            panel.OpenNearTray();
-        hover.Hide();
-        hoverPending = false;
-        activePage = dialog;
-        try
-        {
-            PageNavigation.Show(panel, dialog);
-        }
-        finally
-        {
-            activePage = null;
-            panel.EditingAccounts = false;
-            if (!exiting && !panel.IsDisposed && !dialog.CloseAllRequested)
-                panel.OpenNearTray(newSession: false);
-            Render();
-        }
-    }
-
-    protected override void ExitThreadCore()
-    {
-        if (exiting)
-            return;
-        exiting = true;
-        updateTimer.Stop();
-        updateTimer.Dispose();
-        timer.Stop();
-        timer.Dispose();
-        hoverTimer.Stop();
-        hoverTimer.Dispose();
-        hover.Dispose();
-        tray.Visible = false;
-        tray.Icon?.Dispose();
-        tray.Dispose();
-        activePage?.Dispose();
-        panel.Dispose();
-        base.ExitThreadCore();
+        if (exiting) return;
+        exiting = true; timer.Stop(); updateTimer.Stop(); hoverTimer.Stop();
+        navigation.Shutdown(); panel.Shutdown(); hover.Close(); tray.Dispose();
     }
 }

@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace Usage;
+namespace Pace;
 
 public sealed class Settings
 {
@@ -28,19 +28,31 @@ public sealed class Settings
     {
         string legacy = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "UsageMonitor");
         SettingsMigration.MoveDirectory(legacy, DirectoryPath);
-
-        try
-        {
-            var settings = JsonSerializer.Deserialize<Settings>(File.ReadAllText(FilePath)) ?? new();
-            if (SettingsMigration.RewritePaths(settings, legacy, DirectoryPath))
-                settings.Save();
-            return settings;
-        }
-        catch
-        {
+        if (!File.Exists(FilePath))
             return new();
+        for (int attempt = 1; ; attempt++)
+        {
+            try
+            {
+                var settings = JsonSerializer.Deserialize<Settings>(File.ReadAllText(FilePath)) ?? new();
+                if (SettingsMigration.RewritePaths(settings, legacy, DirectoryPath))
+                    settings.TrySave();
+                return settings;
+            }
+            catch (IOException) when (attempt < 5)
+            {
+                // Briefly locked by sync or antivirus software; retry before giving up.
+                Thread.Sleep(100);
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException or JsonException or NotSupportedException)
+            {
+                // Never let the next save silently replace settings that could not be read.
+                return new() { preserveExisting = true };
+            }
         }
     }
+
+    bool preserveExisting;
 
     public Preference For(Account a)
     {
@@ -69,8 +81,27 @@ public sealed class Settings
     public void Save()
     {
         Directory.CreateDirectory(DirectoryPath);
+        if (preserveExisting && File.Exists(FilePath))
+        {
+            // Throws if the unreadable file cannot be kept aside, so it is never overwritten.
+            File.Copy(FilePath, Path.Combine(DirectoryPath, $"settings.unreadable-{DateTime.Now:yyyyMMdd-HHmmss}.json"));
+            preserveExisting = false;
+        }
         var tmp = FilePath + ".tmp";
         File.WriteAllText(tmp, JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true }));
         File.Move(tmp, FilePath, true);
+    }
+
+    public bool TrySave()
+    {
+        try
+        {
+            Save();
+            return true;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
     }
 }

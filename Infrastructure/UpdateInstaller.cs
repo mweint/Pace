@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using System.IO.Compression;
 
-namespace Usage;
+namespace Pace;
 
 internal static class UpdateInstaller
 {
@@ -35,13 +35,14 @@ internal static class UpdateInstaller
 
     static bool StartInstall()
     {
+        if (!OperatingSystem.IsWindows()) return false;
         if (ReadyVersion is not { } version || !AppUpdates.IsNewer(version, AppUpdates.CurrentVersion)) return false;
         string payload = Path.Combine(DirectoryPath, "payload");
         if (!Directory.Exists(payload)) return false;
         var executables = Directory.GetFiles(payload, "Pace.exe", SearchOption.AllDirectories);
         if (executables.Length != 1) return false;
         string script = Path.Combine(DirectoryPath, "install.ps1");
-        using var resource = typeof(UpdateInstaller).Assembly.GetManifestResourceStream("Usage.scripts.Install-Update.ps1")!;
+        using var resource = typeof(UpdateInstaller).Assembly.GetManifestResourceStream("Pace.Install-Update.ps1")!;
         using (var output = File.Create(script)) resource.CopyTo(output);
         var start = new ProcessStartInfo("powershell.exe") { UseShellExecute = true, WindowStyle = ProcessWindowStyle.Hidden };
         foreach (string argument in new[] { "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script, "-Source", Path.GetDirectoryName(executables[0])!, "-Destination", AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar), "-ProcessId", Environment.ProcessId.ToString(), "-Marker", Marker })

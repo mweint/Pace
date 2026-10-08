@@ -1,6 +1,6 @@
 using Microsoft.Win32;
 
-namespace Usage;
+namespace Pace;
 
 internal static class StartupRegistration
 {
@@ -10,6 +10,7 @@ internal static class StartupRegistration
     {
         get
         {
+            if (!OperatingSystem.IsWindows()) return false;
             using var run = Registry.CurrentUser.OpenSubKey(RunKey);
             using var approval = Registry.CurrentUser.OpenSubKey(ApprovalKey);
             var state = approval?.GetValue("Pace") as byte[];
@@ -17,6 +18,7 @@ internal static class StartupRegistration
         }
         set
         {
+            if (!OperatingSystem.IsWindows()) throw new PlatformNotSupportedException("Startup integration has not been ported to this desktop yet.");
             using var run = Registry.CurrentUser.CreateSubKey(RunKey);
             if (value)
             {

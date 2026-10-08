@@ -1,35 +1,39 @@
-namespace Usage;
+namespace Pace;
 
-internal sealed class SettingsSection : FlowLayoutPanel, IThemedSection
+internal sealed class SettingsSection : PaintedPanel, IThemedSection
 {
-    public bool ShowSeparator { get; set; }
-    public SettingsSection(int width)
+    bool separator;
+    public bool ShowSeparator { get => separator; set { separator = value; InvalidateVisual(); } }
+    public AccountToggle Toggle(string text, bool selected) => new(text, selected)
     {
-        SectionStyle.Apply(this);
-        DoubleBuffered = true;
-        Width = width;
-        Padding = new Padding(UiMetrics.ContentInset);
-        FlowDirection = FlowDirection.TopDown;
-        WrapContents = false;
-        AutoSize = true;
-        AutoSizeMode = AutoSizeMode.GrowAndShrink;
-        MinimumSize = new Size(width, 0);
-        MaximumSize = new Size(width, 0);
-    }
-    public Label Label(string text, bool heading = false)
+        Margin = new Thickness(0, 0, 0, UiMetrics.InlineGap)
+    };
+    public TextBlock Label(string text, bool heading = false)
     {
-        var label = new Label { Text = text, Font = heading ? Palette.BarFont() : Palette.BodyFont(), ForeColor = heading ? Palette.Text : Palette.Muted,
-            AutoSize = true, MaximumSize = new Size(Width - Padding.Horizontal, 0), Margin = new Padding(0, 0, 0, UiMetrics.CardGap) };
-        Controls.Add(label);
+        var label = Palette.Label(text, heading, heading ? Palette.Text : Palette.Muted, heading ? Palette.BarSize : Palette.BodySize);
+        label.Margin = new Thickness(0, 0, 0, UiMetrics.CardGap);
+        Children.Add(label);
         return label;
     }
-    protected override void OnPaint(PaintEventArgs e)
+    protected override Size MeasureOverride(Size availableSize)
     {
-        base.OnPaint(e);
-        var state = e.Graphics.Save();
-        float scale = DeviceDpi / (float)UiMetrics.BaseDpi;
-        e.Graphics.ScaleTransform(scale, scale);
-        SectionStyle.DrawSeparator(e.Graphics, Width / scale, ShowSeparator);
-        e.Graphics.Restore(state);
+        double height = 2 * UiMetrics.ContentInset;
+        foreach (var child in Children)
+        {
+            child.Measure(new Size(Math.Max(1, availableSize.Width - 2 * UiMetrics.ContentInset), double.PositiveInfinity));
+            height += child.DesiredSize.Height;
+        }
+        return new(availableSize.Width, height);
     }
+    protected override Size ArrangeOverride(Size finalSize)
+    {
+        double y = UiMetrics.ContentInset;
+        foreach (var child in Children)
+        {
+            child.Arrange(new Rect(UiMetrics.ContentInset, y, Math.Max(1, finalSize.Width - 2 * UiMetrics.ContentInset), child.DesiredSize.Height));
+            y += child.DesiredSize.Height;
+        }
+        return finalSize;
+    }
+    protected override void DrawSurface(DrawingContext context) => SectionStyle.DrawSeparator(context, Bounds.Width, ShowSeparator);
 }

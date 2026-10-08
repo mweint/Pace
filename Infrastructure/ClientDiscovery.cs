@@ -1,6 +1,6 @@
 using Microsoft.Win32;
 
-namespace Usage;
+namespace Pace;
 
 internal static class ClientDiscovery
 {
@@ -9,9 +9,16 @@ internal static class ClientDiscovery
     internal static IEnumerable<string> Candidates(string service)
     {
         string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        if (!OperatingSystem.IsWindows())
+        {
+            yield return Path.Combine(home, ".local", "bin", service.ToLowerInvariant());
+            foreach (string directory in (Environment.GetEnvironmentVariable("PATH") ?? "").Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries))
+                yield return Path.Combine(directory, service.ToLowerInvariant());
+            yield break;
+        }
         string local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
         string roaming = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-        if (service == "Claude")
+        if (service == Services.Claude)
         {
             yield return Path.Combine(home, ".local", "bin", "claude.exe");
             yield return Path.Combine(roaming, "npm", "claude.cmd");
@@ -32,7 +39,7 @@ internal static class ClientDiscovery
             yield return Path.Combine(directory, service.ToLowerInvariant() + ".cmd");
         }
 
-        if (service != "Codex")
+        if (service != Services.Codex)
             yield break;
         foreach (string root in new[] { Path.Combine(local, "Programs", "OpenAI", "Codex"), Path.Combine(local, "OpenAI", "Codex") }.Concat(PackageRoots()))
             foreach (string candidate in BundledCodexCandidates(root))
@@ -50,6 +57,7 @@ internal static class ClientDiscovery
     static List<string> PackageRoots()
     {
         var roots = new List<string>();
+        if (!OperatingSystem.IsWindows()) return roots;
         try
         {
             using var packages = Registry.CurrentUser.OpenSubKey(@"Software\Classes\Local Settings\Software\Microsoft\Windows\CurrentVersion\AppModel\Repository\Packages");

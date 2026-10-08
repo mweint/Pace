@@ -1,7 +1,4 @@
-using System.Drawing.Drawing2D;
-using System.Runtime.InteropServices;
-
-namespace Usage;
+namespace Pace;
 
 public static class TrayToggle
 {

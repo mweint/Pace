@@ -1,26 +1,25 @@
-namespace Usage;
+namespace Pace;
 
 internal enum SectionGroup { None, SecondaryLimits }
-
 internal interface IThemedSection
 {
     bool ShowSeparator { get; set; }
     SectionGroup Group => SectionGroup.None;
 }
-
 internal static class SectionStyle
 {
-    public static void Apply(Control section)
+    public static void DrawWindowFrame(DrawingContext context, Size size) =>
+        context.DrawRectangle(null, new Pen(Palette.Brush(Palette.WindowBorder), UiMetrics.WindowBorderWidth),
+            new Rect(.5, .5, size.Width - UiMetrics.WindowBorderWidth, size.Height - UiMetrics.WindowBorderWidth));
+    public static Border Identity(Control content) => new()
     {
-        section.BackColor = Palette.SectionBackground;
-        section.Margin = Padding.Empty;
-    }
-
-    public static void DrawSeparator(Graphics graphics, float width, bool visible)
+        Padding = new Thickness(UiMetrics.ContentInset),
+        Background = Palette.Brush(Palette.SectionBackground), Child = content
+    };
+    public static void DrawSeparator(DrawingContext context, double width, bool visible)
     {
-        if (!visible)
-            return;
-        using var edge = new Pen(Palette.InputBorder, UiMetrics.BorderWidth);
-        graphics.DrawLine(edge, UiMetrics.ContentInset, 0, width - UiMetrics.ContentInset, 0);
+        if (visible)
+            context.DrawLine(new Pen(Palette.Brush(Palette.InputBorder), UiMetrics.BorderWidth),
+                new Point(UiMetrics.ContentInset, .5), new Point(width - UiMetrics.ContentInset, .5));
     }
 }

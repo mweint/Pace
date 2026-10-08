@@ -1,23 +1,24 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net8.0-windows</TargetFramework>
-    <UseWindowsForms>true</UseWindowsForms>
+    <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AssemblyName>Pace</AssemblyName>
-    <RootNamespace>Usage</RootNamespace>
+    <RootNamespace>Pace</RootNamespace>
     <Product>Pace</Product>
     <Title>Pace</Title>
     <Version>0.2.0</Version>
-    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
     <ApplicationIcon>Assets\Icons\pace.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
-    <Content Include="Assets\Fonts\*" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
-    <EmbeddedResource Include="Assets\Icons\*.png" />
-    <EmbeddedResource Include="Assets\Icons\pace.ico" />
-    <EmbeddedResource Include="scripts\Install-Update.ps1" />
+    <PackageReference Include="Avalonia.Desktop" Version="12.1.3" />
+    <PackageReference Include="Avalonia.Themes.Simple" Version="12.1.3" />
+    <!-- Pace uses only the open-source desktop runtime; no build usage reporting. -->
+    <PackageReference Include="Avalonia.BuildServices" Version="11.3.2" ExcludeAssets="all" PrivateAssets="all" />
+    <AvaloniaResource Include="Assets/Fonts/*.ttf;Assets/Icons/*.png;Assets/Icons/*.svg;Assets/Icons/pace.ico" />
+    <Content Include="Assets\Fonts\*.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <EmbeddedResource Include="scripts\Install-Update.ps1" LogicalName="Pace.Install-Update.ps1" />
     <Content Include="Assets\Icons\*.svg;Assets\Icons\*.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

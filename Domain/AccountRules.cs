@@ -1,4 +1,4 @@
-namespace Usage;
+namespace Pace;
 
 public static class AccountRules
 {

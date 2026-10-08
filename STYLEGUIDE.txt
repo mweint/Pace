@@ -4,27 +4,38 @@ Keep the compact square design. Theme owns shared choices; views compose them;
 controls own field geometry. Do not create a parallel theme.
 
 Theme
-  Palette: semantic colors, process-private Pace Sans fonts, filled buttons.
+  Palette: semantic colors, embedded original Pace Sans fonts, filled buttons.
   Warning is the sole attention role for expiry, limits, reconnect and errors;
   it shares the orange Above color. Do not add feature-specific warning colors.
   Palette owns enabled/disabled, selected, toggle, input, focus and button states.
   FilledButton paints filled text buttons, including disabled text and keyboard
   focus. IconButton keeps its intentionally distinct unfilled treatment.
-  Body 9pt; account names SemiBold 10.5pt; toolbar titles SemiBold 10pt.
-  All Font creation belongs here. Shared Segoe UI fallback handles missing assets;
+  All action icons use the packaged Lucide set at IconSize, including settings.
+  Returning to a reused window clears retained focus cues; subsequent deliberate
+  keyboard navigation still shows its normal focus cue.
+  Body 12px; account names SemiBold 14px; toolbar titles SemiBold 13.33px.
+  All typography belongs here. Text uses Avalonia's normal layout and shaping
+  (FormattedText, TextBlock); measure with Palette.TextWidth/TextHeight and
+  ellipsize with Palette.Line. Do not substitute installed system fonts;
   self-tests verify the packaged families load without fallback.
   Tray hover uses AccountFont for names and BodyFont for numbers, as cards do.
   ThemedToolTip uses BodyFont and Palette colors for reset/error information.
-  Windows owns tooltip placement and timing, not typography or painting.
+  Avalonia owns tooltip placement; theme owns typography, painting and timing.
   UiMetrics: logical dimensions at 96 DPI, spacing, targets and tooltip timing.
   Shared border widths, focus insets, switch geometry, badge sizes and toolbar
   spacing belong here. Scale from BaseDpi, never a per-view DPI convention.
   Component-specific field coordinates remain local.
   Motion: 15ms frames; 200ms linear page crossfade; 260ms popup ease-out;
-  160ms reorder ease-out; 18px page travel. Respect Windows animation preference.
+  160ms reorder ease-out; 18px travel through Motion.SlideOffset. Respect the
+  system animation preference.
+  Fades animate WidgetWindow.FrameOpacity, never Window.Opacity. The window
+  surface is transparent and the frame is composited once before opacity, so
+  the whole window blends with the desktop. Back keeps the outgoing page in
+  front until it finishes fading.
 
 Presentation
-  WidgetForm: shared font, borderless surface and border painting.
+  WidgetWindow: shared font, borderless transparent surface, frame border and
+  FrameOpacity.
   PageDialog: separate native pages; shared placement, animation, dismissal,
   Escape and focus suppression. Never embed pages in UsagePanel.
   PageNavigation: simultaneous exit and entrance in both directions. Pages slide
@@ -41,7 +52,7 @@ Controls
   differs from filled text buttons. Suppress outgoing outlines.
   AccountToggle: rectangular switch, BodyFont, Space support, keyboard-only focus.
   AccountRow and AccountEditorRow own layout and consume shared theme/domain rules.
-  AccountDetailTip uses ThemedToolTip for reset countdowns, warnings and errors.
+  AccountRow and ResetBadge use ThemedToolTip only for the original information.
   Reset labels use local clock time, with a weekday on other calendar days.
   ResetBadge shares the reset-time line; Warning marks expiry within seven days. Missing
   dates remain unavailable; identical expiries combine with a trailing count.
@@ -50,6 +61,7 @@ Controls
   blue is only for the tray; gray means unavailable/stale.
 
 Logic and infrastructure
+  Services names the Claude and Codex identifiers; UsageLimit names limit keys.
   PaceMath solely owns baseline, classification and labels. Inclusive tolerance:
   -4 through +2 percentage points. Palette maps classifications to colors.
   Each account uses its actual allowance period/reset. Ahead hours measure the
@@ -61,7 +73,11 @@ Logic and infrastructure
   SignIn owns invisible official CLI login and discards potentially sensitive output.
   NativeTrayIcon owns registration and suppresses native tooltip text.
   TrayApp coordinates refresh and views with one active-page reference.
+  A refresh requested during a refresh runs once afterward instead of being lost.
   Preserve old readings on failed refreshes; fetch sequentially to avoid bursts.
+  Credential discovery and reads run off the UI thread.
+  Settings never overwrites a file it could not read; it keeps a copy first.
+  ErrorLog records only exception type and stack for unexpected errors.
   AppTiming and TrayToggle own refresh cadence and tray click decisions.
 
 Verification and repository contents
@@ -74,3 +90,11 @@ Verification and repository contents
   Commit source and required assets only. Exclude credentials, settings,
   environments, generated previews/reports and builds.
   Preserve asset licenses and reference SVGs. Follow .editorconfig.
+
+Artwork and fonts
+  Reuse the packaged PNG artwork and bundled font files. Never redraw the Lucide
+  icons; all action icons, including settings, come from the Lucide set.
+  Mouse focus is quiet. Selected filled buttons have no selection outline;
+  keyboard focus alone displays Pace's outline. Icon buttons have no tooltips.
+  App icon keeps its line pixels with transparent surrounding pixels.
+  Layout derives from measured text and shared metrics, not fixed pixel targets.

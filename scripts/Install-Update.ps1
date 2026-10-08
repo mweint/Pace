@@ -29,4 +29,10 @@ catch {
     # Clear the pending marker so a failed update cannot loop on every launch.
     if (Test-Path -LiteralPath $Marker) { Remove-Item -LiteralPath $Marker }
 }
+finally {
+    # The backup is only needed until the copy succeeds or is rolled back; the payload is consumed.
+    foreach ($paceTemporary in @($paceBackup, $Source)) {
+        if (Test-Path -LiteralPath $paceTemporary) { Remove-Item -LiteralPath $paceTemporary -Recurse -Force -ErrorAction SilentlyContinue }
+    }
+}
 Start-Process -FilePath (Join-Path $Destination 'Pace.exe') -WorkingDirectory $Destination -WindowStyle Hidden

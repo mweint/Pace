@@ -1,40 +1,21 @@
-using System.Drawing.Drawing2D;
+using Avalonia.Media.Imaging;
+using Avalonia.Platform;
 
-namespace Usage;
+namespace Pace;
 
 public static class ServiceMark
 {
-    static readonly Bitmap Claude = IconButton.LoadArtwork("claude");
-    static readonly Bitmap Codex = IconButton.LoadArtwork("codex");
-    static readonly Dictionary<int, Bitmap> SmallCodex = new[] { 16, 20, 24, 32 }
-        .ToDictionary(size => size, size => IconButton.LoadArtwork($"codex-{size}"));
-
-    public static Bitmap ButtonArtwork(string service)
+    static readonly Bitmap Claude = Load("claude"), Codex = Load("codex");
+    static readonly Dictionary<int, Bitmap> SmallCodex = new[] { 16, 20, 24, 32 }.ToDictionary(size => size, size => Load($"codex-{size}"));
+    static Bitmap Load(string name) => new(AssetLoader.Open(new Uri($"avares://Pace/Assets/Icons/{name}.png")));
+    public static void Draw(DrawingContext context, string service, Point position, double scale = 1)
     {
-        var image = new Bitmap(UiMetrics.ServiceIconSize + UiMetrics.CardGap, UiMetrics.ServiceIconSize);
-        using var graphics = Graphics.FromImage(image);
-        Draw(graphics, service, 0, 0);
-        return image;
+        var artwork = service == Services.Claude ? Claude : SmallCodex.GetValueOrDefault((int)Math.Round(UiMetrics.ServiceIconSize * scale), Codex);
+        context.DrawImage(artwork, new Rect(position, new Size(UiMetrics.ServiceIconSize, UiMetrics.ServiceIconSize)));
     }
-
-    public static void Draw(Graphics g, string service, float x, float y)
-    {
-        // Provider artwork retains its original color and proportions in every view.
-        using var transform = g.Transform;
-        float scale = transform.Elements[0];
-        int pixels = (int)Math.Round(UiMetrics.ServiceIconSize * scale);
-        var artwork = service == "Claude" ? Claude : SmallCodex.GetValueOrDefault(pixels, Codex);
-        var state = g.Save();
-        try
-        {
-            // Bitmap interpolation, rather than SmoothingMode, controls small-image quality.
-            g.InterpolationMode = InterpolationMode.HighQualityBicubic;
-            g.PixelOffsetMode = PixelOffsetMode.Half;
-            g.DrawImage(artwork, new RectangleF(x, y, UiMetrics.ServiceIconSize, UiMetrics.ServiceIconSize));
-        }
-        finally
-        {
-            g.Restore(state);
-        }
-    }
+}
+internal sealed class ServiceIcon(string service) : Control
+{
+    protected override Size MeasureOverride(Size availableSize) => new(UiMetrics.ServiceIconSize, UiMetrics.ServiceIconSize);
+    public override void Render(DrawingContext context) => ServiceMark.Draw(context, service, default, TopLevel.GetTopLevel(this)?.RenderScaling ?? 1);
 }

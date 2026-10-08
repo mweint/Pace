@@ -1,10 +1,10 @@
-namespace Usage;
+namespace Pace;
 
 internal static class LimitWarning
 {
     public const double UsageThreshold = 90;
 
-    public static bool Approaching(Window window, DateTimeOffset now) =>
+    public static bool Approaching(UsageWindow window, DateTimeOffset now) =>
         double.IsFinite(window.Used) && window.Used >= UsageThreshold &&
         window.Period > TimeSpan.Zero && (window.Reset == null || PaceMath.Calculate(window, now) != null);
 
@@ -16,15 +16,12 @@ internal static class LimitWarning
         var result = limits.Where(limit => Approaching(limit.Window, now)).ToList();
         if (reading.Weekly is { } weekly && Approaching(weekly, now) &&
             !result.Any(limit => limit.Window == weekly))
-            result.Insert(0, new("weekly", "Weekly", weekly));
+            result.Insert(0, new(UsageLimit.WeeklyKey, "Weekly", weekly));
         return result;
     }
 
     public static List<UsageLimit> Hidden(Reading reading, Preference? preference, DateTimeOffset now) =>
-        For(reading, now).Where(limit => limit.Window != reading.Weekly &&
-            !(reading.Account.Service == "Claude" &&
-                ((limit.Key == "session" && preference?.ShowFiveHour != false) ||
-                 ((limit.Key.Equals("model:Fable", StringComparison.OrdinalIgnoreCase) || limit.Key == "fable") && preference?.ShowFable != false)))).ToList();
+        For(reading, now).Where(limit => limit.Window != reading.Weekly && !Preference.ShowsBar(preference, reading.Account, limit)).ToList();
 
     public static string Summary(Reading reading, DateTimeOffset now) => Summary(For(reading, now));
 

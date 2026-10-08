@@ -12,6 +12,10 @@ Refactor for clear ownership, not arbitrary file-count targets.
   states in Palette, typography there, spacing/dimensions/borders/DPI in
   UiMetrics, and timing/easing in Motion. Use Palette.Warning for all warnings.
   Keep component field placement local; do not duplicate shared design values.
+- Text uses Avalonia's layout (FormattedText, TextBlock). Never place glyphs by
+  hand or reproduce metrics from the old WinForms/GDI version.
+- Fades animate WidgetWindow.FrameOpacity, never Window.Opacity (which fades each
+  painted surface separately and stays nearly opaque on screen).
 - All account and limit sections use SectionStyle and SectionList (including
   AnimatedAccountList). The theme owns the flat section background and divider
   policy across overview, Accounts and details. Palette.InteractionSurface is

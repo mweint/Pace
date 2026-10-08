@@ -2,7 +2,7 @@ using System.Net;
 using System.Security.Cryptography;
 using System.Text.Json;
 
-namespace Usage;
+namespace Pace;
 
 public sealed record AppRelease(string Version, Uri Download, string Digest);
 
@@ -67,7 +67,7 @@ public sealed class AppUpdates
             Available = null;
             foreach (var asset in root.GetProperty("assets").EnumerateArray())
             {
-                if (asset.GetProperty("name").GetString() != "Pace-win-x64.zip") continue;
+                if (!OperatingSystem.IsWindows() || asset.GetProperty("name").GetString() != "Pace-win-x64.zip") continue;
                 var url = new Uri(asset.GetProperty("browser_download_url").GetString()!);
                 string digest = asset.TryGetProperty("digest", out var value) ? value.GetString() ?? "" : "";
                 if (url.Scheme != "https" || url.Host != "github.com" || !url.AbsolutePath.StartsWith("/mweint/Pace/releases/download/", StringComparison.Ordinal) || !digest.StartsWith("sha256:", StringComparison.Ordinal))
@@ -75,7 +75,7 @@ public sealed class AppUpdates
                 Available = new(version, url, digest[7..]);
                 break;
             }
-            Status = Available == null ? "No compatible Windows update package." : $"Version {version.TrimStart('v')} available.";
+            Status = Available == null ? "No compatible update package." : $"Version {version.TrimStart('v')} available.";
         }
         catch { Status = "Couldn't check for updates. Try again."; }
         finally { busy = false; Changed?.Invoke(); }

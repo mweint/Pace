@@ -4,18 +4,17 @@ $repo = Split-Path $PSScriptRoot -Parent
 $palette = [IO.File]::ReadAllText((Join-Path $repo 'Theme/Palette.cs'))
 Add-Type -AssemblyName System.Drawing
 function ThemeColor([string]$role) {
-    $match = [regex]::Match($palette, '\b' + $role + '\s*=\s*Color\.FromArgb\((\d+),\s*(\d+),\s*(\d+)\)')
+    $match = [regex]::Match($palette, '\b' + $role + '\s*=\s*Color\.From(?:Rgb|Argb)\((\d+),\s*(\d+),\s*(\d+)\)')
     if (!$match.Success) { throw "Missing theme color: $role" }
     return [Drawing.Color]::FromArgb([int]$match.Groups[1].Value, [int]$match.Groups[2].Value, [int]$match.Groups[3].Value)
 }
-$background = ThemeColor 'Background'
 $colors = @((ThemeColor 'Above'), (ThemeColor 'Below'), (ThemeColor 'TrayOnPace'))
 $frames = @()
 foreach ($size in @(16, 20, 24, 32, 48, 64, 128, 256)) {
     $bitmap = [Drawing.Bitmap]::new($size, $size)
     $graphics = [Drawing.Graphics]::FromImage($bitmap)
     try {
-        $graphics.Clear($background)
+        $graphics.Clear([Drawing.Color]::Transparent)
         $left = [int][Math]::Round($size / 8)
         $height = [int][Math]::Round($size / 8)
         for ($index = 0; $index -lt 3; $index++) {

@@ -1,66 +1,73 @@
-using System.Net;
-using System.Net.Http.Headers;
 using System.Text.Json.Nodes;
 
-namespace Usage;
-// Original implementation. Credentials are read in place; the sign-in applications own renewal.
+namespace Pace;
+
 public static partial class Providers
 {
-    public static Window? ParseCodex(JsonObject document, DateTimeOffset received)
+    static readonly string[] CodexWindowFields = ["primary_window", "secondary_window", "primary", "secondary"];
+    static readonly TimeSpan Week = TimeSpan.FromDays(7), FiveHours = TimeSpan.FromHours(5);
+
+    public static UsageWindow? ParseClaude(JsonObject document)
     {
-        JsonNode limits = document["rate_limit"] ?? document["rate_limits"] ?? document;
-        var windows = new List<Window>();
-        foreach (string field in new[]
-        {
-            "primary_window",
-            "secondary_window",
-            "primary",
-            "secondary"
-        }
-
-        )
-        {
-            JsonNode? item = limits[field];
-            double? used = Number(item?["used_percent"]);
-            double length = Number(item?["limit_window_seconds"]) ?? (Number(item?["window_minutes"]) * 60) ?? (field.StartsWith("secondary") ? 604800 : 18000);
-            if (used == null || used < 0 || length <= 21600 || length > TimeSpan.MaxValue.TotalSeconds)
-                continue;
-            DateTimeOffset? reset = null;
-            if (Number(item?["reset_at"]) is double timestamp)
-            {
-                try
-                {
-                    reset = timestamp >= 1000000000000 ? DateTimeOffset.FromUnixTimeMilliseconds((long)timestamp) : DateTimeOffset.FromUnixTimeSeconds((long)timestamp);
-                }
-                catch (ArgumentOutOfRangeException)
-                {
-                }
-            }
-            else if (Number(item?["reset_after_seconds"] ?? item?["resets_in_seconds"]) is double seconds)
-            {
-                try
-                {
-                    reset = received.AddSeconds(seconds);
-                }
-                catch (ArgumentOutOfRangeException)
-                {
-                }
-            }
-
-            if (reset != null)
-                windows.Add(new(used.Value, reset.Value, TimeSpan.FromSeconds(length)));
-        }
-
-        // Pick the allowance closest to a seven-day period, independent of which slot the API uses.
-        return windows.OrderBy(w => Math.Abs(w.Period.TotalDays - 7)).FirstOrDefault();
+        var week = document["seven_day"];
+        if (Number(week?["utilization"]) is not { } used || used < 0 || !DateTimeOffset.TryParse(Text(week?["resets_at"]), out var end))
+            return null;
+        return new(used, end, Week);
     }
 
-    public static Window? ParseClaude(JsonObject document)
+    // The allowance closest to seven days (and longer than six hours), whichever slot the API uses.
+    public static UsageWindow? ParseCodex(JsonObject document, DateTimeOffset received) =>
+        CodexWindows(document["rate_limit"] ?? document["rate_limits"] ?? document, received)
+            .Select(w => w.Window).Where(w => w.Period > TimeSpan.FromHours(6))
+            .OrderBy(w => Math.Abs(w.Period.TotalDays - 7)).FirstOrDefault();
+
+    static IEnumerable<(string Field, UsageWindow Window)> CodexWindows(JsonNode? block, DateTimeOffset received)
     {
-        JsonNode? week = document["seven_day"];
-        double? used = Number(week?["utilization"]);
-        if (used == null || used < 0 || !DateTimeOffset.TryParse(Text(week?["resets_at"]), out var end))
+        if (block is not JsonObject)
+            yield break;
+        foreach (string field in CodexWindowFields)
+        {
+            var item = block[field];
+            if (Number(item?["used_percent"]) is not { } used || used < 0)
+                continue;
+            double seconds = Number(item?["limit_window_seconds"]) ?? Number(item?["window_minutes"]) * 60
+                ?? (field.StartsWith("secondary", StringComparison.Ordinal) ? Week : FiveHours).TotalSeconds;
+            if (seconds <= 0 || seconds > TimeSpan.MaxValue.TotalSeconds)
+                continue;
+            var reset = ResetExpiry(item?["reset_at"]) ?? After(received, Number(item?["reset_after_seconds"] ?? item?["resets_in_seconds"]));
+            if (reset != null)
+                yield return (field, new(used, reset, TimeSpan.FromSeconds(seconds)));
+        }
+    }
+
+    // ISO dates, or Unix timestamps in seconds or milliseconds.
+    static DateTimeOffset? ResetExpiry(JsonNode? value)
+    {
+        if (DateTimeOffset.TryParse(Text(value), out var date))
+            return date;
+        if (Number(value) is not { } number)
             return null;
-        return new(used.Value, end, TimeSpan.FromDays(7));
+        try
+        {
+            return number >= 1_000_000_000_000 ? DateTimeOffset.FromUnixTimeMilliseconds((long)number) : DateTimeOffset.FromUnixTimeSeconds((long)number);
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            return null;
+        }
+    }
+
+    static DateTimeOffset? After(DateTimeOffset start, double? seconds)
+    {
+        if (seconds is not { } value)
+            return null;
+        try
+        {
+            return start.AddSeconds(value);
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            return null;
+        }
     }
 }

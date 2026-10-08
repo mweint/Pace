@@ -1,147 +1,58 @@
-namespace Usage;
-// Accounts and details remain separate native windows. This class owns their
-// shared placement, navigation animation, dismissal, and animation resources.
-public abstract class PageDialog : WidgetForm
-{
-    readonly System.Windows.Forms.Timer fade = new()
-    {
-        Interval = Motion.FrameMilliseconds
-    };
-    long fadeStarted;
-    Point fadeAnchor;
-    double fadeFrom, fadeTo = 1;
-    bool closing, allowClose;
-    public bool CloseAllRequested
-    {
-        get; private set;
-    }
-    protected bool IsClosing => closing;
-    protected Control? NavigationFocus
-    {
-        get; set;
-    }
-    protected Rectangle AnchorArea => Owner is UsagePanel panel ? panel.AnchorArea : Screen.FromControl(this).WorkingArea;
+namespace Pace;
 
+public abstract class PageDialog : WidgetWindow
+{
+    readonly MotionTween fade = new();
+    PixelPoint fadeAnchor;
+    bool allowClose;
+    public bool IsClosing { get; private set; }
+    public bool CloseAllRequested { get; private set; }
+    public bool Navigating { get; set; }
+    protected Control? NavigationFocus { get; set; }
+    public event Action<bool>? LeaveRequested;
     protected PageDialog()
     {
-        StartPosition = FormStartPosition.Manual;
-        KeyPreview = true;
-        fade.Tick += (_, _) => Animate();
-    }
-
-    protected override void OnShown(EventArgs e)
-    {
-        Place();
-        BringToFront();
-        Activate();
-        ActiveControl = NavigationFocus;
-        OnPageShown();
-        if (Owner != null && Motion.Enabled)
+        Closing += (_, e) =>
         {
-            Opacity = 0;
-            MoveToFrame();
-            StartFade(1);
-        }
-
-        base.OnShown(e);
-    }
-
-    protected virtual void OnPageShown()
-    {
-    }
-
-    protected override void OnFormClosing(FormClosingEventArgs e)
-    {
-        if (!allowClose && Owner != null && e.CloseReason == CloseReason.UserClosing && Motion.Enabled)
-        {
+            if (allowClose || PreviewMode) return;
             e.Cancel = true;
-            if (!closing)
-            {
-                closing = true;
-                SuppressFocusOutlines(this);
-                StartFade(0);
-            }
-        }
-
-        base.OnFormClosing(e);
-    }
-
-    protected override void OnDeactivate(EventArgs e)
-    {
-        base.OnDeactivate(e);
-        if (Owner != null && !closing)
-            DismissAll();
-    }
-
-    protected override void OnKeyDown(KeyEventArgs e)
-    {
-        if (e.KeyCode == Keys.Escape)
+            if (!IsClosing) LeaveRequested?.Invoke(false);
+        };
+        Deactivated += (_, _) =>
         {
-            e.Handled = true;
-            Close();
-        }
-
-        base.OnKeyDown(e);
+            if (!PreviewMode && !KeepOpen && !Navigating && !IsClosing) DismissAll();
+        };
+        KeyDown += (_, e) =>
+        {
+            if (e.Key == Key.Escape && !e.Handled) { LeaveRequested?.Invoke(false); e.Handled = true; }
+        };
+        Closed += (_, _) => fade.Dispose();
     }
-
-    public void DismissAll()
+    public void OpenPage(PixelRect anchor)
     {
-        CloseAllRequested = true;
-        Close();
-    }
-
-    protected void Place()
-    {
-        fadeAnchor = PopupPlacement.BottomRight(AnchorArea, Size);
+        AnchorArea = anchor; Place();
+        fadeAnchor = Position;
+        FrameOpacity = Motion.Enabled ? 0 : 1;
         MoveToFrame();
-    }
-
-    void StartFade(double target)
-    {
-        fadeFrom = Opacity;
-        fadeTo = target;
-        fadeStarted = Environment.TickCount64;
-        fade.Start();
-    }
-
-    void Animate()
-    {
-        bool dismissing = closing && CloseAllRequested;
-        double duration = dismissing ? Motion.FadeMilliseconds : Motion.NavigationFadeMilliseconds;
-        double progress = Math.Clamp((Environment.TickCount64 - fadeStarted) / duration, 0, 1);
-        double eased = dismissing ? Motion.EaseOut(progress) : Motion.NavigationEase(progress);
-        Opacity = fadeFrom + (fadeTo - fadeFrom) * eased;
-        if (!CloseAllRequested)
+        Show(); Activate(); NavigationFocus?.Focus(NavigationMethod.Unspecified);
+        fade.Start(Motion.NavigationFadeMilliseconds, t =>
+        {
+            FrameOpacity = t;
             MoveToFrame();
-        if (progress < 1)
-            return;
-        fade.Stop();
-        if (closing)
-        {
-            allowClose = true;
-            Close();
-        }
+        }, () => Navigating = false, Motion.Linear);
     }
-
-    void MoveToFrame() => Location = new Point(fadeAnchor.X, fadeAnchor.Y + Motion.NavigationOffset(Opacity, DeviceDpi));
-    static void SuppressFocusOutlines(Control parent)
+    public void DismissAll() { if (!IsClosing) LeaveRequested?.Invoke(true); }
+    public virtual bool SaveBeforeLeave() => true;
+    public void ExitPage(bool all, Action completed)
     {
-        foreach (Control control in parent.Controls)
+        IsClosing = true; CloseAllRequested = all;
+        foreach (var button in ((Control)Content!).GetVisualDescendants().OfType<IconButton>()) button.SuppressFocusOutline = true;
+        double from = FrameOpacity;
+        fade.Start(all ? Motion.FadeMilliseconds : Motion.NavigationFadeMilliseconds, t =>
         {
-            if (control is IconButton button)
-            {
-                button.SuppressFocusOutline = true;
-                button.Invalidate();
-            }
-
-            SuppressFocusOutlines(control);
-        }
+            FrameOpacity = from * (1 - t);
+            if (!all) MoveToFrame();
+        }, () => { allowClose = true; Close(); completed(); }, all ? Motion.EaseOut : Motion.Linear);
     }
-
-    protected override void Dispose(bool disposing)
-    {
-        if (disposing)
-            fade.Dispose();
-        base.Dispose(disposing);
-    }
+    void MoveToFrame() => Position = new(fadeAnchor.X, fadeAnchor.Y + Motion.SlideOffset(FrameOpacity, RenderScaling));
 }

@@ -1,109 +1,58 @@
-using System.Drawing.Drawing2D;
-using System.Drawing.Imaging;
+namespace Pace;
 
-namespace Usage;
-
-public sealed class TrayHover : WidgetForm
+public sealed class TrayHover : WidgetWindow
 {
-    List<(Reading Reading, string Name)> entries = [];
-    Rectangle? iconAnchor;
-    protected override bool ShowWithoutActivation => true;
-
-    protected override CreateParams CreateParams
-    {
-        get
-        {
-            var p = base.CreateParams;
-            p.ExStyle |= 0x08000000;
-            return p;
-        }
-    }
-
+    readonly HoverContent content = new();
+    PixelRect? iconAnchor;
     public TrayHover()
     {
-        Font = Palette.AccountFont();
-        StartPosition = FormStartPosition.Manual;
-        ClientSize = new Size(UiMetrics.HoverWidth, 100);
+        Width = UiMetrics.HoverWidth;
+        ShowActivated = false;
+        Focusable = false;
+        Opened += (_, _) => DesktopIntegration.PreventActivation(this);
+        // Native hover paints at the window's inset, rather than inside the
+        // border padding used by the navigable pages.
+        Content = content;
     }
-
     public void UpdateEntries(List<Reading> readings, Settings settings)
     {
-        entries = readings.Select(r => (r, settings.DisplayName(r.Account))).ToList();
-        SizeContent();
-        if (Visible && iconAnchor is { } anchor)
-            Place(anchor);
-        Invalidate();
+        content.Entries = readings.Select(r => (r, settings.DisplayName(r.Account))).ToList();
+        Height = 2 * UiMetrics.HoverInset + UiMetrics.ServiceIconSize + (Math.Max(1, readings.Count) - 1) * UiMetrics.HoverRowHeight;
+        content.InvalidateVisual();
+        if (IsVisible && iconAnchor is { } anchor) PlaceAt(anchor);
     }
-
-    public void Open(Point anchor)
-        => Open(new Rectangle(anchor, Size.Empty));
-
-    public void Open(Rectangle anchor)
+    public void Open(PixelRect anchor) { iconAnchor = anchor; PlaceAt(anchor); Show(); PlaceAt(anchor); }
+    void PlaceAt(PixelRect anchor)
     {
-        // Create the native window before positioning so first-show defaults cannot move it.
-        _ = Handle;
-        iconAnchor = anchor;
-        Place(anchor);
-        Show();
-        // Showing on a different-DPI monitor may update the window's DPI.
-        SizeContent();
-        Place(anchor);
+        var screen = Screens.ScreenFromPoint(anchor.Position) ?? Screens.Primary;
+        if (screen == null) return;
+        double scale = screen.Scaling;
+        var area = screen.WorkingArea;
+        int width = (int)Math.Ceiling(Width * scale), height = (int)Math.Ceiling(Height * scale), gap = (int)Math.Ceiling(UiMetrics.ScreenInset * scale);
+        Position = new(Math.Clamp(anchor.X + anchor.Width / 2 - width / 2, area.X, Math.Max(area.X, area.Right - width)),
+            Math.Clamp(Math.Min(anchor.Y, area.Bottom) - height - gap, area.Y, Math.Max(area.Y, area.Bottom - height - gap)));
     }
-
-    void SizeContent() => ClientSize = new Size(
-        (int)(UiMetrics.HoverWidth * DeviceDpi / (float)UiMetrics.BaseDpi),
-        (int)((2 * UiMetrics.HoverInset + UiMetrics.ServiceIconSize + (Math.Max(1, entries.Count) - 1) * UiMetrics.HoverRowHeight) * DeviceDpi / (float)UiMetrics.BaseDpi));
-
-    void Place(Rectangle anchor)
+    sealed class HoverContent : PaintedPanel
     {
-        var area = Screen.FromRectangle(anchor).WorkingArea;
-        int gap = (int)Math.Round(UiMetrics.ScreenInset * DeviceDpi / (float)UiMetrics.BaseDpi);
-        int x = anchor.Left + anchor.Width / 2 - Width / 2;
-        int y = Math.Min(anchor.Top, area.Bottom) - Height - gap;
-        Location = new Point(Math.Clamp(x, area.Left, Math.Max(area.Left, area.Right - Width)),
-            Math.Clamp(y, area.Top, Math.Max(area.Top, area.Bottom - Height - gap)));
-    }
-
-    protected override void OnPaint(PaintEventArgs e)
-    {
-        base.OnPaint(e);
-        var g = e.Graphics;
-        g.SmoothingMode = SmoothingMode.AntiAlias;
-        float scale = DeviceDpi / (float)UiMetrics.BaseDpi;
-        g.ScaleTransform(scale, scale);
-        float width = Width / scale;
-        using var valueFont = Palette.BodyFont();
-        using var text = new SolidBrush(Palette.Text);
-        using var nameFormat = new StringFormat
+        public List<(Reading Reading, string Name)> Entries { get; set; } = [];
+        protected override void DrawSurface(DrawingContext context)
         {
-            Trimming = StringTrimming.EllipsisCharacter,
-            FormatFlags = StringFormatFlags.NoWrap
-        };
-        if (entries.Count == 0)
-        {
-            g.DrawString("No tray accounts selected", valueFont, text, UiMetrics.HoverInset, UiMetrics.HoverInset);
-            return;
-        }
-
-        for (int i = 0; i < entries.Count; i++)
-        {
-            var (reading, name) = entries[i];
-            float y = UiMetrics.HoverInset + i * UiMetrics.HoverRowHeight;
-            ServiceMark.Draw(g, reading.Account.Service, UiMetrics.HoverInset, y);
-            var now = DateTimeOffset.UtcNow;
-            using var status = new SolidBrush(reading.Weekly is { } weekly && reading.Error == null ? Palette.Status(weekly, now) : Palette.Status((Pace?)null));
-            string value = reading.Weekly is { } limit && reading.Error == null ? PaceMath.HoverSummary(limit, now) : "Unavailable";
-            using var valueFormat = new StringFormat(StringFormat.GenericTypographic)
+            SectionStyle.DrawWindowFrame(context, Bounds.Size);
+            if (Entries.Count == 0) { context.DrawText(Palette.Format("No tray accounts selected", Palette.Text), new Point(UiMetrics.HoverInset, UiMetrics.HoverInset)); return; }
+            for (int i = 0; i < Entries.Count; i++)
             {
-                Alignment = StringAlignment.Far,
-                FormatFlags = StringFormatFlags.NoWrap
-            };
-            float valueWidth = (float)Math.Ceiling(g.MeasureString(value, valueFont, int.MaxValue, valueFormat).Width) + UiMetrics.InlineGap;
-            float valueLeft = width - UiMetrics.HoverInset - valueWidth;
-            float nameLeft = UiMetrics.HoverInset + UiMetrics.ServiceIconSize + UiMetrics.CardGap;
-            float rowHeight = Math.Max(Font.GetHeight(UiMetrics.BaseDpi), valueFont.GetHeight(UiMetrics.BaseDpi));
-            g.DrawString(name, Font, text, new RectangleF(nameLeft, y, Math.Max(1, valueLeft - nameLeft - UiMetrics.CardGap), rowHeight), nameFormat);
-            g.DrawString(value, valueFont, status, new RectangleF(valueLeft, y, valueWidth, rowHeight), valueFormat);
+                var (reading, name) = Entries[i];
+                double y = UiMetrics.HoverInset + i * UiMetrics.HoverRowHeight;
+                ServiceMark.Draw(context, reading.Account.Service, new Point(UiMetrics.HoverInset, y), TopLevel.GetTopLevel(this)?.RenderScaling ?? 1);
+                var now = DateTimeOffset.UtcNow;
+                var value = Palette.Format(reading.Weekly is { } limit && reading.Error == null ? PaceMath.HoverSummary(limit, now) : "Unavailable",
+                    reading.Weekly is { } weekly && reading.Error == null ? Palette.Status(weekly, now) : Palette.Muted);
+                double valueWidth = Math.Ceiling(value.Width) + UiMetrics.InlineGap;
+                double valueLeft = Bounds.Width - UiMetrics.HoverInset - valueWidth, nameLeft = UiMetrics.HoverInset + UiMetrics.ServiceIconSize + UiMetrics.CardGap;
+                var title = Palette.Line(name, Palette.Text, valueLeft - nameLeft - UiMetrics.CardGap, Palette.AccountSize, true);
+                context.DrawText(title, new Point(nameLeft, y));
+                context.DrawText(value, new Point(Bounds.Width - UiMetrics.HoverInset - value.Width, y));
+            }
         }
     }
 }

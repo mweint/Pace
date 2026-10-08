@@ -1,59 +1,36 @@
-namespace Usage;
+namespace Pace;
 
-// Account-level information forms a section, using the common inset and divider.
-internal sealed class InfoSection : Panel, IThemedSection
+internal class InfoSection : PaintedPanel, IThemedSection
 {
-    bool arranging, showSeparator;
-    public bool ShowSeparator
-    {
-        get => showSeparator;
-        set { if (showSeparator != value) { showSeparator = value; Invalidate(); } }
-    }
-
-    public InfoSection()
-    {
-        DoubleBuffered = true;
-        SectionStyle.Apply(this);
-        Font = Palette.BodyFont();
-        SizeChanged += (_, _) => Arrange();
-        DpiChangedAfterParent += (_, _) => Arrange();
-    }
-
+    bool separator;
+    public bool ShowSeparator { get => separator; set { separator = value; InvalidateVisual(); } }
     public void Add(string text, Color color)
     {
-        Controls.Add(new Label { Text = text, ForeColor = color, Margin = Padding.Empty });
-        Arrange();
+        var label = Palette.Label(text, color: color);
+        label.TextWrapping = TextWrapping.Wrap;
+        label.TextTrimming = TextTrimming.None;
+        Children.Add(label);
     }
-
-    void Arrange()
+    protected override Size MeasureOverride(Size availableSize)
     {
-        if (arranging)
-            return;
-        arranging = true;
-        try
+        double height = 2 * UiMetrics.ContentInset;
+        foreach (var child in Children)
         {
-            int inset = LogicalToDeviceUnits(UiMetrics.ContentInset);
-            int width = Math.Max(1, ClientSize.Width - 2 * inset);
-            int bottom = inset;
-            foreach (Label label in Controls)
-            {
-                int height = Math.Max(label.Text.Split('\n').Length * LogicalToDeviceUnits(UiMetrics.DetailInfoLineHeight),
-                    TextRenderer.MeasureText(label.Text, Font, new Size(width, int.MaxValue), TextFormatFlags.WordBreak).Height);
-                label.SetBounds(inset, bottom, width, height);
-                bottom = label.Bottom;
-            }
-            Height = bottom + inset;
+            child.Measure(new Size(Math.Max(1, availableSize.Width - 2 * UiMetrics.ContentInset), double.PositiveInfinity));
+            height += Math.Max(UiMetrics.DetailInfoLineHeight, child.DesiredSize.Height);
         }
-        finally { arranging = false; }
+        return new(availableSize.Width, height);
     }
-
-    protected override void OnPaint(PaintEventArgs e)
+    protected override Size ArrangeOverride(Size finalSize)
     {
-        base.OnPaint(e);
-        var state = e.Graphics.Save();
-        float scale = DeviceDpi / (float)UiMetrics.BaseDpi;
-        e.Graphics.ScaleTransform(scale, scale);
-        SectionStyle.DrawSeparator(e.Graphics, Width / scale, ShowSeparator);
-        e.Graphics.Restore(state);
+        double y = UiMetrics.ContentInset;
+        foreach (var child in Children)
+        {
+            double height = Math.Max(UiMetrics.DetailInfoLineHeight, child.DesiredSize.Height);
+            child.Arrange(new Rect(UiMetrics.ContentInset, y, Math.Max(1, finalSize.Width - 2 * UiMetrics.ContentInset), height));
+            y += height;
+        }
+        return finalSize;
     }
+    protected override void DrawSurface(DrawingContext context) => SectionStyle.DrawSeparator(context, Bounds.Width, ShowSeparator);
 }

@@ -1,95 +1,82 @@
-namespace Usage;
+using Avalonia.Interactivity;
 
-// Clips full-height content and draws a compact themed scrollbar only on overflow.
-internal sealed class ScrollViewport : Panel
+namespace Pace;
+
+// Full-height content, custom square 4px thumb; no native scrollbars or hover expansion.
+internal sealed class ScrollViewport : PaintedPanel
 {
-    readonly Control content;
-    int offset, extent, dragStart, dragOffset;
-    bool arranging, dragging;
-    public bool Overflow => extent > ClientSize.Height;
+    public Control Content { get; }
+    double offset, extent, dragStart, dragOffset;
+    bool dragging;
+    public bool Overflow => extent > Bounds.Height;
+    public double Offset => offset;
     public ScrollViewport(Control content)
     {
-        this.content = content;
-        DoubleBuffered = true;
-        BackColor = Palette.SectionBackground;
-        content.Dock = DockStyle.None;
-        if (content is ScrollableControl scrollable) scrollable.AutoScroll = false;
-        Controls.Add(content);
-        Watch(content);
-        content.Layout += (_, _) => Arrange();
-    }
-    void Watch(Control control)
-    {
-        control.MouseWheel += Wheel;
-        control.Enter += (_, _) =>
+        Content = content; Children.Add(content); ClipToBounds = true;
+        AddHandler(GotFocusEvent, (_, e) =>
         {
-            if (!Overflow || !control.IsHandleCreated) return;
-            var position = PointToClient(control.PointToScreen(Point.Empty));
-            if (position.Y < 0) SetOffset(offset + position.Y);
-            else if (position.Y + control.Height > Height) SetOffset(offset + position.Y + control.Height - Height);
-        };
-        control.ControlAdded += (_, e) => { if (e.Control != null) Watch(e.Control); };
-        foreach (Control child in control.Controls) Watch(child);
+            if (e.Source is Control focused && focused.TranslatePoint(default, this) is { } position)
+            {
+                if (position.Y < 0) SetOffset(offset + position.Y);
+                else if (position.Y + focused.Bounds.Height > Bounds.Height) SetOffset(offset + position.Y + focused.Bounds.Height - Bounds.Height);
+            }
+        }, RoutingStrategies.Bubble);
     }
-    void Wheel(object? sender, MouseEventArgs e)
+    protected override Size MeasureOverride(Size availableSize)
     {
-        if (e is HandledMouseEventArgs handled) handled.Handled = true;
-        SetOffset(offset - e.Delta * LogicalToDeviceUnits(UiMetrics.ScrollWheelDistance) / 120);
-    }
-    protected override void OnMouseWheel(MouseEventArgs e) { Wheel(this, e); base.OnMouseWheel(e); }
-    protected override void OnLayout(LayoutEventArgs levent) { base.OnLayout(levent); Arrange(); }
-    void Arrange()
-    {
-        if (arranging || content == null || content.IsDisposed) return;
-        arranging = true;
-        try
+        Content.Measure(new Size(availableSize.Width, double.PositiveInfinity));
+        extent = Content.DesiredSize.Height;
+        if (extent > availableSize.Height)
         {
-            extent = content.Controls.Cast<Control>().Sum(child => child.Height + child.Margin.Vertical);
-            int width = Math.Max(1, ClientSize.Width - (Overflow ? LogicalToDeviceUnits(UiMetrics.ScrollbarWidth + UiMetrics.ScrollbarGap) : 0));
-            content.Size = new Size(width, Math.Max(1, extent));
-            content.PerformLayout();
-            extent = content.Controls.Cast<Control>().Sum(child => child.Height + child.Margin.Vertical);
-            content.Height = Math.Max(1, extent);
-            SetOffset(offset);
+            Content.Measure(new Size(Math.Max(1, availableSize.Width - UiMetrics.ScrollbarWidth - UiMetrics.ScrollbarGap), double.PositiveInfinity));
+            extent = Content.DesiredSize.Height;
         }
-        finally { arranging = false; }
+        return new(availableSize.Width, Math.Min(extent, availableSize.Height));
     }
-    void SetOffset(int value)
+    protected override Size ArrangeOverride(Size finalSize)
     {
-        offset = Math.Clamp(value, 0, Math.Max(0, extent - ClientSize.Height));
-        content.Location = new Point(0, -offset);
-        Invalidate();
+        offset = Math.Clamp(offset, 0, Math.Max(0, extent - finalSize.Height));
+        Content.Arrange(new Rect(0, -offset, Math.Max(1, finalSize.Width - (extent > finalSize.Height ? UiMetrics.ScrollbarWidth + UiMetrics.ScrollbarGap : 0)), extent));
+        return finalSize;
     }
-    Rectangle Thumb
+    public void SetOffset(double value)
+    {
+        double scale = TopLevel.GetTopLevel(this)?.RenderScaling ?? 1;
+        offset = Math.Clamp(Math.Truncate(value * scale) / scale, 0, Math.Max(0, extent - Bounds.Height));
+        InvalidateArrange(); InvalidateVisual();
+    }
+    internal Rect Thumb
     {
         get
         {
-            int inset = LogicalToDeviceUnits(UiMetrics.InlineGap);
-            int track = Math.Max(1, Height - 2 * inset);
-            int height = Math.Clamp(track * Height / Math.Max(1, extent), Math.Min(track, LogicalToDeviceUnits(UiMetrics.ScrollbarMinThumb)), track);
-            int top = inset + (track - height) * offset / Math.Max(1, extent - Height);
-            int width = LogicalToDeviceUnits(UiMetrics.ScrollbarWidth);
-            return new Rectangle(Width - width, top, width, height);
+            double track = Math.Max(1, Bounds.Height - 2 * UiMetrics.InlineGap);
+            double scale = TopLevel.GetTopLevel(this)?.RenderScaling ?? 1;
+            double height = Math.Clamp(Math.Truncate(track * Bounds.Height / Math.Max(1, extent) * scale) / scale, Math.Min(track, UiMetrics.ScrollbarMinThumb), track);
+            double top = UiMetrics.InlineGap + Math.Truncate((track - height) * offset / Math.Max(1, extent - Bounds.Height) * scale) / scale;
+            return new(Bounds.Width - UiMetrics.ScrollbarWidth, top, UiMetrics.ScrollbarWidth, height);
         }
     }
-    protected override void OnMouseDown(MouseEventArgs e)
+    protected override void OnPointerWheelChanged(PointerWheelEventArgs e)
     {
-        base.OnMouseDown(e);
-        if (!Overflow || e.Button != MouseButtons.Left || e.X < Width - LogicalToDeviceUnits(UiMetrics.ScrollbarWidth + UiMetrics.ScrollbarGap)) return;
-        if (!Thumb.Contains(e.Location)) SetOffset(offset + (e.Y < Thumb.Top ? -Height : Height));
-        dragging = true; dragStart = e.Y; dragOffset = offset; Capture = true;
+        SetOffset(offset - e.Delta.Y * UiMetrics.ScrollWheelDistance);
+        e.Handled = true;
     }
-    protected override void OnMouseMove(MouseEventArgs e)
+    protected override void OnPointerPressed(PointerPressedEventArgs e)
     {
-        base.OnMouseMove(e);
-        if (dragging) SetOffset(dragOffset + (e.Y - dragStart) * Math.Max(0, extent - Height) / Math.Max(1, Height - 2 * LogicalToDeviceUnits(UiMetrics.InlineGap) - Thumb.Height));
+        var point = e.GetPosition(this);
+        if (!Overflow || point.X < Bounds.Width - UiMetrics.ScrollbarWidth - UiMetrics.ScrollbarGap || !e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
+        if (!Thumb.Contains(point)) SetOffset(offset + (point.Y < Thumb.Top ? -Bounds.Height : Bounds.Height));
+        dragging = true; dragStart = point.Y; dragOffset = offset;
+        e.Pointer.Capture(this); e.Handled = true;
     }
-    protected override void OnMouseUp(MouseEventArgs e) { dragging = false; Capture = false; base.OnMouseUp(e); }
-    protected override void OnPaint(PaintEventArgs e)
+    protected override void OnPointerMoved(PointerEventArgs e)
     {
-        base.OnPaint(e);
-        if (!Overflow) return;
-        using var ink = new SolidBrush(Palette.ScrollThumb);
-        e.Graphics.FillRectangle(ink, Thumb);
+        if (dragging) SetOffset(dragOffset + (e.GetPosition(this).Y - dragStart) * Math.Max(0, extent - Bounds.Height) / Math.Max(1, Bounds.Height - 2 * UiMetrics.InlineGap - Thumb.Height));
+    }
+    protected override void OnPointerReleased(PointerReleasedEventArgs e) { dragging = false; e.Pointer.Capture(null); }
+    protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e) { dragging = false; base.OnPointerCaptureLost(e); }
+    protected override void DrawSurface(DrawingContext context)
+    {
+        if (Overflow) context.FillRectangle(Palette.Brush(Palette.ScrollThumb), Thumb);
     }
 }

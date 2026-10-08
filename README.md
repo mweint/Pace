@@ -99,20 +99,23 @@ restores them if copying fails; settings and sign-ins remain outside the app.
 
 Existing CLI sign-ins respect `CODEX_HOME` and `CLAUDE_CONFIG_DIR`. Tokens are read
 from local credential files and sent to the corresponding service. Official CLIs
-manage sign-in and renewal. Pace has no telemetry. Subscription endpoints are
-undocumented and may change.
+manage sign-in and renewal. Pace has no telemetry. An unexpected error writes only
+its exception type and stack trace to `error.log` in the Pace settings folder.
+Subscription endpoints are undocumented and may change.
 
 <details>
 <summary>Development</summary>
 
-Requires the .NET 8 SDK. See [STYLEGUIDE.txt](STYLEGUIDE.txt) and [AGENTS.md](AGENTS.md)
-for theme ownership and contribution rules.
+The desktop UI uses Avalonia. Windows is verified; Linux and macOS packaging and
+platform integration still need validation. Requires the .NET 10 SDK. See
+[STYLEGUIDE.txt](STYLEGUIDE.txt) and [AGENTS.md](AGENTS.md) for theme ownership
+and contribution rules.
 
 ```powershell
 dotnet build -c Release
 dotnet publish -c Release -r win-x64 --self-contained true -o dist/Pace
-.\bin\Release\net8.0-windows\Pace.exe --self-test self-test.json
-.\bin\Release\net8.0-windows\Pace.exe --render-preview preview.png
+.\bin\Release\net10.0\Pace.exe --self-test self-test.json
+.\bin\Release\net10.0\Pace.exe --render-preview preview.png
 ```
 
 Offline checks require an interactive Windows desktop with Explorer. Preview mode
@@ -133,4 +136,4 @@ local reports and builds are excluded from Git.
   Pace Sans is a renamed derivative with a centered tilde. The SIL Open Font
   License and modification notice are in `Assets/Fonts`.
 
-Service icons are terminal-prompt and sunburst drawings.
+Service icons retain the original provider artwork and sizes; attribution is in Assets/Icons/Service-marks.txt.

@@ -1,54 +1,37 @@
-using System.Drawing.Drawing2D;
-using System.Runtime.InteropServices;
+using Avalonia.Media.Imaging;
 
-namespace Usage;
+namespace Pace;
 
 public static class TrayDrawing
 {
-    [DllImport("user32.dll")]
-    static extern bool DestroyIcon(IntPtr handle);
-    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
-    static extern IntPtr FindWindow(string className, string? title);
-    [DllImport("user32.dll")]
-    static extern uint GetDpiForWindow(IntPtr window);
-    [DllImport("user32.dll")]
-    static extern int GetSystemMetricsForDpi(int index, uint dpi);
-    public static Bitmap Bitmap(List<Reading> readings, DateTimeOffset now, int size = 32)
+    public static RenderTargetBitmap Bitmap(List<Reading> readings, DateTimeOffset now, int size = 32)
     {
-        var bitmap = new Bitmap(size, size);
-        using var g = Graphics.FromImage(bitmap);
-        g.SmoothingMode = SmoothingMode.None;
-        int count = Math.Clamp(readings.Count, 1, AccountRules.MaxTrayAccounts);
-        int thickness = Math.Max(2, (int)Math.Round(size / 8d));
-        int spacing = (int)Math.Round(size * (count >= 4 ? 0.25 : 0.3125));
-        int firstY = (size - ((count - 1) * spacing + thickness)) / 2;
-        int lineLeft = (int)Math.Round(size * 0.125), lineRight = size - lineLeft;
-        for (int i = 0; i < count; i++)
-        {
-            var r = i < readings.Count ? readings[i] : null;
-            int y = firstY + i * spacing;
-            var state = r?.Weekly is { } weekly && r.Error == null ? PaceMath.Classify(weekly, now) : PaceState.Unavailable;
-            using var ink = new SolidBrush(state == PaceState.OnPace ? Palette.TrayOnPace : Palette.Status(state));
-            g.FillRectangle(ink, lineLeft, y, lineRight - lineLeft, thickness);
-        }
-
+        var lines = new TrayLines(readings, now);
+        lines.Measure(new Size(size, size)); lines.Arrange(new Rect(0, 0, size, size));
+        var bitmap = new RenderTargetBitmap(new PixelSize(size, size), new Vector(UiMetrics.BaseDpi, UiMetrics.BaseDpi));
+        bitmap.Render(lines);
         return bitmap;
     }
-
-    public static Icon Icon(List<Reading> readings)
+    public static byte[] Png(List<Reading> readings, int size = 32)
     {
-        uint dpi = GetDpiForWindow(FindWindow("Shell_TrayWnd", null));
-        int size = GetSystemMetricsForDpi(49 /* SM_CXSMICON */, dpi == 0 ? 96u : dpi);
-        using var bmp = Bitmap(readings, DateTimeOffset.UtcNow, Math.Max(16, size));
-        var handle = bmp.GetHicon();
-        try
+        using var bitmap = Bitmap(readings, DateTimeOffset.UtcNow, size);
+        using var stream = new MemoryStream(); bitmap.Save(stream, PngBitmapEncoderOptions.Default); return stream.ToArray();
+    }
+    sealed class TrayLines(List<Reading> readings, DateTimeOffset now) : Control
+    {
+        public override void Render(DrawingContext context)
         {
-            using var temporary = System.Drawing.Icon.FromHandle(handle);
-            return (Icon)temporary.Clone();
-        }
-        finally
-        {
-            DestroyIcon(handle);
+            int size = (int)Bounds.Width, count = Math.Clamp(readings.Count, 1, AccountRules.MaxTrayAccounts);
+            int thickness = Math.Max(2, (int)Math.Round(size / 8d));
+            int spacing = (int)Math.Round(size * (count >= 4 ? .25 : .3125));
+            int first = (size - ((count - 1) * spacing + thickness)) / 2;
+            int left = (int)Math.Round(size * .125);
+            for (int i = 0; i < count; i++)
+            {
+                var reading = i < readings.Count ? readings[i] : null;
+                var state = reading?.Weekly is { } weekly && reading.Error == null ? PaceMath.Classify(weekly, now) : PaceState.Unavailable;
+                context.FillRectangle(Palette.Brush(state == PaceState.OnPace ? Palette.TrayOnPace : Palette.Status(state)), new Rect(left, first + i * spacing, size - 2 * left, thickness));
+            }
         }
     }
 }

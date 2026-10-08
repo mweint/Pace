@@ -1,13 +1,15 @@
 using System.Text.Json;
 
-namespace Usage;
+namespace Pace;
 
 internal static class LiveCheck
 {
     // Intentionally omit identities, paths, credentials and response bodies.
-    public static void Run(string path)
+    public static async Task Run(string path)
     {
-        var readings = Providers.Discover(Settings.Load()).Select(account => Providers.Fetch(account).GetAwaiter().GetResult());
+        var readings = new List<Reading>();
+        foreach (var account in await Providers.Discover(Settings.Load()))
+            readings.Add(await Providers.Fetch(account));
         var results = readings.Select(reading => new { reading.Account.Service, HasWeekly = reading.Weekly != null, reading.Error, Used = reading.Weekly?.Used, Reset = reading.Weekly?.Reset, BankedResets = reading.Resets?.Count, Expiries = reading.Resets?.Grants?.Select(grant => new { grant.Count, grant.Expires }), reading.ResetError });
         File.WriteAllText(path, JsonSerializer.Serialize(results, new JsonSerializerOptions { WriteIndented = true }));
     }

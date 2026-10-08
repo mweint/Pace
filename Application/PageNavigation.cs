@@ -1,29 +1,46 @@
-namespace Usage;
-// Separate native windows share one simultaneous opacity handoff.
-internal static class PageNavigation
+namespace Pace;
+
+// Simultaneous handoffs between separate native windows, with one session monitor.
+internal sealed class PageNavigation(UsagePanel panel)
 {
-    public static void Show(UsagePanel panel, PageDialog destination)
+    public PageDialog? ActivePage { get; private set; }
+    public event Action? Changed;
+    public void Show(PageDialog page)
     {
-        bool returning = false;
-        destination.Opacity = Motion.Enabled ? 0 : 1;
-        EventHandler enter = (_, _) => { if (!panel.IsDisposed && !panel.Disposing) panel.Dismiss(navigation: true); };
-        FormClosingEventHandler leave = (_, e) =>
+        if (ActivePage != null) { ActivePage.Activate(); page.Close(); return; }
+        panel.EditingAccounts = true;
+        if (!panel.IsVisible) panel.OpenNearTray();
+        ActivePage = page;
+        page.Navigating = true;
+        page.LeaveRequested += Leave;
+        page.OpenPage(panel.AnchorArea);
+        panel.Dismiss(navigation: true);
+    }
+    void Leave(bool all)
+    {
+        var page = ActivePage;
+        if (page == null || page.IsClosing || !page.SaveBeforeLeave()) return;
+        page.Navigating = true;
+        if (!all)
         {
-            if (returning || destination.CloseAllRequested || panel.IsDisposed || panel.Disposing || e.CloseReason != CloseReason.UserClosing)
-                return;
-            returning = true;
             panel.OpenNearTray(newSession: false);
-        };
-        destination.Shown += enter;
-        destination.FormClosing += leave;
-        try
-        {
-            destination.ShowDialog(panel);
+            // Keep the outgoing page in front of the overview until its fade completes.
+            page.Activate();
         }
-        finally
+        page.ExitPage(all, () =>
         {
-            destination.Shown -= enter;
-            destination.FormClosing -= leave;
-        }
+            page.LeaveRequested -= Leave;
+            ActivePage = null;
+            panel.EditingAccounts = false;
+            if (!all) panel.Activate();
+            Changed?.Invoke();
+        });
+        if (all) panel.Dismiss();
+    }
+    public void DismissAll() { if (ActivePage != null) Leave(true); else panel.Dismiss(); }
+    public void Shutdown()
+    {
+        if (ActivePage is { } page) { page.Navigating = true; page.PreviewMode = true; page.SaveBeforeLeave(); page.Close(); ActivePage = null; }
+        panel.EditingAccounts = false;
     }
 }

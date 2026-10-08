@@ -1,4 +1,4 @@
-namespace Usage;
+namespace Pace;
 
 internal static class SettingsMigration
 {

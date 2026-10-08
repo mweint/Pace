@@ -6,7 +6,7 @@ public sealed class UsagePanel : WidgetWindow
     readonly ScrollViewport viewport;
     readonly IconButton refresh = new("refresh", "Refresh usage");
     readonly IconButton settingsButton = new("settings", "Settings");
-    readonly MotionTween entrance = new();
+    readonly MotionTween entrance;
     PixelPoint entranceTarget;
     bool closing;
     public bool EditingAccounts { get; set; }
@@ -16,6 +16,7 @@ public sealed class UsagePanel : WidgetWindow
     public event Action<string>? AddAccountRequested;
     public UsagePanel()
     {
+        entrance = new(this);
         Title = "Pace";
         viewport = new(rows);
         var layout = new DockPanel();
@@ -23,7 +24,8 @@ public sealed class UsagePanel : WidgetWindow
         DockPanel.SetDock(footer, Dock.Bottom);
         layout.Children.Add(footer); layout.Children.Add(viewport);
         SetBody(layout);
-        refresh.Click += (_, _) => RefreshRequested?.Invoke();
+        // A click while refreshing would only queue a duplicate request.
+        refresh.Click += (_, _) => { if (!refresh.Spinning) RefreshRequested?.Invoke(); };
         settingsButton.Click += (_, _) => SettingsRequested?.Invoke();
         Deactivated += (_, _) =>
         {
@@ -38,7 +40,7 @@ public sealed class UsagePanel : WidgetWindow
     public void UpdateNotification(bool available) { settingsButton.Notification = available; settingsButton.InvalidateVisual(); }
     public void UpdateRows(List<Reading> readings, Settings settings, bool loading)
     {
-        refresh.IsEnabled = !loading;
+        refresh.Spinning = loading;
         var visible = readings.Where(r => settings.For(r.Account).Show).ToList();
         var existing = rows.Children.OfType<AccountRow>().ToList();
         bool same = existing.Count == visible.Count && existing.Select(r => r.Reading.Account.Key).SequenceEqual(visible.Select(r => r.Account.Key));
@@ -114,7 +116,7 @@ public sealed class UsagePanel : WidgetWindow
         {
             FrameOpacity = t;
             Position = new PixelPoint(entranceTarget.X, entranceTarget.Y + (newSession ? Motion.SlideOffset(FrameOpacity, RenderScaling) : 0));
-        }, ease: newSession ? Motion.EaseOut : Motion.Linear);
+        }, ease: newSession ? Motion.EaseOut : Motion.Lead);
     }
     public void Dismiss(bool navigation = false)
     {
@@ -132,7 +134,7 @@ public sealed class UsagePanel : WidgetWindow
             // Stay transparent while hidden so a reshow never presents a stale opaque frame.
             Hide(); closing = false;
             refresh.SuppressFocusOutline = settingsButton.SuppressFocusOutline = false;
-        }, navigation ? Motion.Linear : Motion.EaseOut);
+        }, navigation ? Motion.Trail : Motion.EaseOut);
     }
     public void Shutdown() { entrance.Dispose(); Hide(); }
 }

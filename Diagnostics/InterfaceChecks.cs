@@ -20,9 +20,9 @@ internal static class InterfaceChecks
             {
                 using var svgStream = Avalonia.Platform.AssetLoader.Open(new Uri($"avares://Pace/Assets/Icons/{name}.svg"));
                 var svg = System.Xml.Linq.XDocument.Load(svgStream).Root!;
-                using var png = new Avalonia.Media.Imaging.Bitmap(Avalonia.Platform.AssetLoader.Open(new Uri($"avares://Pace/Assets/Icons/{name}.png")));
-                check((string?)svg.Attribute("viewBox") == "0 0 24 24" && (string?)svg.Attribute("stroke-width") == "2" && png.PixelSize == new PixelSize(96, 96),
-                    $"{name} uses the same Lucide 24px/2px source weight and 96px packaged raster");
+                var bounds = IconArtwork.Shape(name).Bounds;
+                check((string?)svg.Attribute("viewBox") == "0 0 24 24" && bounds.Width > 0 && bounds.Left >= 0 && bounds.Right <= 24 && bounds.Top >= 0 && bounds.Bottom <= 24,
+                    $"{name} draws from its Lucide 24px SVG geometry");
             }
             var demo = SampleData.Readings();
             var settings = new Settings();
@@ -104,11 +104,11 @@ internal static class InterfaceChecks
     {
         var descendants = ((Control)accounts.Content!).GetVisualDescendants().OfType<Control>().ToList();
         var tabs = descendants.OfType<TabStrip>().Single();
-        check(Enumerable.Range(0, 2).All(i => tabs.TabWidth(i) >= Palette.TextWidth(i == 0 ? "General" : "Accounts", Palette.BarSize, true) + 2 * UiMetrics.TabTextInset),
+        check(Enumerable.Range(0, 2).All(i => tabs.TabWidth(i) >= Palette.TextWidth(i == 0 ? "General" : "Accounts", Palette.TitleSize, true) + 2 * UiMetrics.TabTextInset),
             "Tabs fit their measured labels with the shared inset");
         var footer = descendants.OfType<FooterBar>().Single();
         var caption = footer.Children.OfType<TextBlock>().Single();
-        check(caption.FontFamily == Palette.HeadingFontFamily && caption.FontSize == Palette.BarSize && Canvas.GetLeft(caption) == UiMetrics.ToolbarLabelLeft,
+        check(caption.FontFamily == Palette.HeadingFontFamily && caption.FontSize == Palette.TitleSize && Canvas.GetLeft(caption) == UiMetrics.ToolbarLabelLeft,
             "Footer caption uses the toolbar heading role and shared placement");
         accounts.SelectTab(true); await Task.Delay(40);
         var sections = descendants.OfType<SettingsSection>().ToList();
@@ -241,8 +241,8 @@ internal static class InterfaceChecks
         navigation.Show(page);
         check(page.Position.Y == PopupPlacement.BottomRight(page.AnchorArea, new Size(page.Width, page.Height), page.RenderScaling).Y + Motion.SlideOffset(0, page.RenderScaling), "Page entry starts at the full slide offset before its first frame");
         await Task.Delay(60);
-        check(page.IsVisible && page.FrameOpacity > 0 && page.FrameOpacity < 1 && panel.IsVisible && panel.FrameOpacity < 1, "Separate pages enter while the overview exits");
-        check(page.FrameOpacity < .65 && Math.Abs(page.FrameOpacity + panel.FrameOpacity - 1) < .15, "Navigation uses the linear 200ms overlapping fade rather than popup easing");
+        check(page.IsVisible && page.FrameOpacity > .4 && page.FrameOpacity < 1 && panel.IsVisible, "Separate pages enter over the overview");
+        check(panel.FrameOpacity == 1, "The overview stays opaque under the entering page so the desktop never shows through");
         var anchor = panel.AnchorArea;
         await Task.Delay((int)Motion.NavigationFadeMilliseconds + 50);
         check(!panel.IsVisible && page.IsVisible && page.AnchorArea == anchor, "Navigation leaves one visible page on the same monitor");

@@ -2,7 +2,7 @@ namespace Pace;
 
 public abstract class PageDialog : WidgetWindow
 {
-    readonly MotionTween fade = new();
+    readonly MotionTween fade;
     PixelPoint fadeAnchor;
     bool allowClose;
     public bool IsClosing { get; private set; }
@@ -12,6 +12,7 @@ public abstract class PageDialog : WidgetWindow
     public event Action<bool>? LeaveRequested;
     protected PageDialog()
     {
+        fade = new(this);
         Closing += (_, e) =>
         {
             if (allowClose || PreviewMode) return;
@@ -39,7 +40,7 @@ public abstract class PageDialog : WidgetWindow
         {
             FrameOpacity = t;
             MoveToFrame();
-        }, () => Navigating = false, Motion.Linear);
+        }, () => Navigating = false, Motion.EaseOut);
     }
     public void DismissAll() { if (!IsClosing) LeaveRequested?.Invoke(true); }
     public virtual bool SaveBeforeLeave() => true;
@@ -52,7 +53,7 @@ public abstract class PageDialog : WidgetWindow
         {
             FrameOpacity = from * (1 - t);
             if (!all) MoveToFrame();
-        }, () => { allowClose = true; Close(); completed(); }, all ? Motion.EaseOut : Motion.Linear);
+        }, () => { allowClose = true; Close(); completed(); }, Motion.EaseOut);
     }
     void MoveToFrame() => Position = new(fadeAnchor.X, fadeAnchor.Y + Motion.SlideOffset(FrameOpacity, RenderScaling));
 }

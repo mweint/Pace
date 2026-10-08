@@ -10,6 +10,8 @@ public static class UiMetrics
     public const int OuterInset = 12, CardGap = 8, ScreenInset = 8, WindowBorderWidth = 1;
     public const int ContentWidth = PanelWidth - 2 * OuterInset - 2 * WindowBorderWidth;
     public const int ContentInset = 14, InlineGap = 4;
+    // Free-standing text sits slightly inside the edge shared with bars, buttons and switches.
+    public const int TextInset = 3;
     public const int WeeklyBarHeight = 8, PaceMarkerOverhang = 2, ResetBadgeHeight = 24;
     public const int ResetLineGap = InlineGap;
     public const int CompactLimitBarHeight = 4, CompactLimitGroupGap = 12, CompactLimitLabelWidth = 46;
@@ -21,6 +23,8 @@ public static class UiMetrics
     public const int SettingsContentMaxHeight = 420, ScreenHeightReserve = 60;
     public const int ScrollbarWidth = 4, ScrollbarGap = InlineGap, ScrollbarMinThumb = 28, ScrollWheelDistance = 48;
     public const int IconButtonSize = 30, IconSize = 14, TextButtonHeight = 34;
+    // Icon stroke in Lucide's 24-unit viewBox (Lucide's default is 2).
+    public const double IconStroke = 2.25;
     public const int TextButtonPadding = 18, ToolbarInset = 8, ToolbarTextTop = 13;
     public const int AccountActionWidth = 96;
     public static double TextButtonWidth(string text) => Palette.TextWidth(text) + 2 * TextButtonPadding;
@@ -29,7 +33,7 @@ public static class UiMetrics
     public const int DragThreshold = 5;
     public const int ToggleHeight = 27, ToggleTrackWidth = 24, ToggleTrackHeight = 12;
     public const int ToggleKnobSize = 8, ToggleKnobInset = 2;
-    public const int ToggleTextGap = 7;
+    public const int ToggleTextGap = 9;
     public const int ResetBadgeWidth = 42, ResetBadgeIconSize = 12;
     public const int ResetBadgeIconInset = 2, ResetBadgeTextGap = 5;
     public const int PaceMarkerWidth = 3;

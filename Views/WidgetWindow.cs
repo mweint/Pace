@@ -22,6 +22,8 @@ public class WidgetWindow : Window
         FontFamily = Palette.FontFamily; FontSize = Palette.BodySize;
         RenderOptions.SetBitmapInterpolationMode(this, Avalonia.Media.Imaging.BitmapInterpolationMode.HighQuality);
         TextOptions.SetTextHintingMode(this, TextHintingMode.Strong);
+        // Subpixel (ClearType-style) text: grayscale antialiasing renders Pace Sans visibly thinner.
+        TextOptions.SetTextRenderingMode(this, TextRenderingMode.SubpixelAntialias);
         Icon = Palette.ApplicationIcon;
         WindowStartupLocation = WindowStartupLocation.Manual;
         AddHandler(PointerPressedEvent, (_, _) =>

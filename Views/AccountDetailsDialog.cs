@@ -18,13 +18,14 @@ public sealed class AccountDetailsDialog : PageDialog
         DockPanel.SetDock(footer, Dock.Bottom);
         layout.Children.Add(footer); layout.Children.Add(new ScrollViewport(content));
         SetBody(layout);
-        refresh.Click += (_, _) => RefreshRequested?.Invoke();
+        // A click while refreshing would only queue a duplicate request.
+        refresh.Click += (_, _) => { if (!refresh.Spinning) RefreshRequested?.Invoke(); };
         UpdateReading(reading, settings, false);
     }
     public void UpdateReading(Reading reading, Settings settings, bool loading)
     {
         if (IsClosing) return;
-        refresh.IsEnabled = !loading;
+        refresh.Spinning = loading;
         var shown = (reading, settings.DisplayName(reading.Account), settings.RelativeResetTime);
         if (shown == this.shown)
         {

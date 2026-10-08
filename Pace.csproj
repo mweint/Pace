@@ -19,6 +19,6 @@
     <AvaloniaResource Include="Assets/Fonts/*.ttf;Assets/Icons/*.png;Assets/Icons/*.svg;Assets/Icons/pace.ico" />
     <Content Include="Assets\Fonts\*.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <EmbeddedResource Include="scripts\Install-Update.ps1" LogicalName="Pace.Install-Update.ps1" />
-    <Content Include="Assets\Icons\*.svg;Assets\Icons\*.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="Assets\Icons\*.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

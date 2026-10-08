@@ -51,7 +51,7 @@ public sealed class AccountRow : PaintedPanel, IThemedSection
         if (Reading.Weekly is { } window)
         {
             var (reset, _) = Metadata(window, layout, DateTimeOffset.UtcNow);
-            resetBadge.Arrange(new Rect(layout.Metadata.Left + Math.Ceiling(reset.WidthIncludingTrailingWhitespace) + UiMetrics.InlineGap,
+            resetBadge.Arrange(new Rect(layout.Metadata.Left + UiMetrics.TextInset + Math.Ceiling(reset.WidthIncludingTrailingWhitespace) + UiMetrics.InlineGap,
                 layout.Metadata.Center.Y - UiMetrics.ResetBadgeHeight / 2d, UiMetrics.ResetBadgeWidth, UiMetrics.ResetBadgeHeight));
         }
         return finalSize;
@@ -62,7 +62,7 @@ public sealed class AccountRow : PaintedPanel, IThemedSection
         string? label = StatusLabel(window, now);
         var status = label == null ? null : Palette.Format(label, Reading.Error == null ? Palette.Status(window, now) : Palette.Muted);
         bool hasBank = Reading.Resets is { } bank && bank.Available(now) > 0;
-        double reserved = (status == null ? 0 : Math.Ceiling(status.Width) + UiMetrics.CardGap) + (hasBank ? UiMetrics.ResetBadgeWidth + UiMetrics.InlineGap : 0);
+        double reserved = UiMetrics.TextInset + (status == null ? 0 : Math.Ceiling(status.Width) + UiMetrics.CardGap) + (hasBank ? UiMetrics.ResetBadgeWidth + UiMetrics.InlineGap : 0);
         string reset = RelativeResetTime ? PaceMath.ResetCountdown(window.Reset, now) : PaceMath.ResetLabel(window.Reset, now);
         return (Palette.Line(reset, Palette.Muted, layout.Metadata.Width - reserved), status);
     }
@@ -98,12 +98,12 @@ public sealed class AccountRow : PaintedPanel, IThemedSection
             error.MaxTextWidth = layout.Error.Width;
             error.MaxLineCount = 2;
             error.Trimming = TextTrimming.CharacterEllipsis;
-            context.DrawText(error, layout.Error.TopLeft);
+            context.DrawText(error, layout.Error.TopLeft + new Point(UiMetrics.TextInset, 0));
             return;
         }
         UsageBar.Draw(context, w, layout.Bar, true);
         var (reset, status) = Metadata(w, layout, now);
-        context.DrawText(reset, new Point(layout.Metadata.Left, Centered(layout.Metadata, reset)));
+        context.DrawText(reset, new Point(layout.Metadata.Left + UiMetrics.TextInset, Centered(layout.Metadata, reset)));
         if (status != null) context.DrawText(status, new Point(layout.Metadata.Right - status.Width, Centered(layout.Metadata, status)));
         if (showSupplementalLimits) CompactLimitBars.Draw(context, Reading, layout, preference);
     }

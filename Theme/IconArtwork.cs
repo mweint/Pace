@@ -1,34 +1,49 @@
-using Avalonia.Media.Imaging;
+using System.Xml.Linq;
+using Avalonia.Media.Immutable;
 using Avalonia.Platform;
-using System.Runtime.InteropServices;
 
 namespace Pace;
 
-// Tints the packaged white Lucide rasters with a theme color, preserving alpha.
+// Lucide icons drawn from their packaged SVG geometry and stroked with the theme's icon weight,
+// so they stay crisp at every scale and can rotate.
 internal static class IconArtwork
 {
-    static readonly Dictionary<(string, Color), WriteableBitmap> cache = new();
-    public static void Draw(DrawingContext context, string name, Rect bounds, Color ink)
+    const double ViewBox = 24;
+    static readonly Dictionary<string, Geometry> shapes = [];
+    static readonly Dictionary<Color, IPen> pens = [];
+
+    public static void Draw(DrawingContext context, string name, Rect bounds, Color ink, double degrees = 0)
     {
-        if (!cache.TryGetValue((name, ink), out var tinted))
+        double scale = Math.Min(bounds.Width, bounds.Height) / ViewBox;
+        var transform = Matrix.CreateTranslation(-ViewBox / 2, -ViewBox / 2) * Matrix.CreateRotation(Math.PI * degrees / 180)
+            * Matrix.CreateScale(scale, scale) * Matrix.CreateTranslation(bounds.Center.X, bounds.Center.Y);
+        using (context.PushTransform(transform))
+            context.DrawGeometry(null, Pen(ink), Shape(name));
+    }
+
+    internal static Geometry Shape(string name)
+    {
+        if (shapes.TryGetValue(name, out var shape))
+            return shape;
+        using var stream = AssetLoader.Open(new Uri($"avares://Pace/Assets/Icons/{name}.svg"));
+        var group = new GeometryGroup();
+        foreach (var element in XDocument.Load(stream).Descendants())
         {
-            using var source = new Bitmap(AssetLoader.Open(new Uri($"avares://Pace/Assets/Icons/{name}.png")));
-            tinted = new WriteableBitmap(source.PixelSize, source.Dpi, PixelFormat.Bgra8888, AlphaFormat.Unpremul);
-            using var pixels = tinted.Lock();
-            source.CopyPixels(pixels);
-            var data = new byte[pixels.RowBytes * pixels.Size.Height];
-            Marshal.Copy(pixels.Address, data, 0, data.Length);
-            for (int y = 0; y < pixels.Size.Height; y++)
-                for (int x = 0; x < pixels.Size.Width; x++)
-                {
-                    int offset = y * pixels.RowBytes + x * 4;
-                    data[offset] = (byte)(data[offset] * ink.B / 255);
-                    data[offset + 1] = (byte)(data[offset + 1] * ink.G / 255);
-                    data[offset + 2] = (byte)(data[offset + 2] * ink.R / 255);
-                }
-            Marshal.Copy(data, 0, pixels.Address, data.Length);
-            cache.Add((name, ink), tinted);
+            if (element.Name.LocalName == "path" && (string?)element.Attribute("d") is { } data)
+                group.Children.Add(Geometry.Parse(data));
+            else if (element.Name.LocalName == "circle")
+            {
+                double x = (double)element.Attribute("cx")!, y = (double)element.Attribute("cy")!, r = (double)element.Attribute("r")!;
+                group.Children.Add(new EllipseGeometry(new Rect(x - r, y - r, 2 * r, 2 * r)));
+            }
         }
-        context.DrawImage(tinted, bounds);
+        return shapes[name] = group;
+    }
+
+    static IPen Pen(Color ink)
+    {
+        if (!pens.TryGetValue(ink, out var pen))
+            pens[ink] = pen = new ImmutablePen((IImmutableBrush)Palette.Brush(ink), UiMetrics.IconStroke, lineCap: PenLineCap.Round, lineJoin: PenLineJoin.Round);
+        return pen;
     }
 }

@@ -9,7 +9,8 @@ public static class Palette
     // Embedded Inter, renamed Pace Sans; never substituted with installed fonts.
     public static readonly FontFamily FontFamily = new("avares://Pace/Assets/Fonts#Pace Sans");
     public static readonly FontFamily HeadingFontFamily = new("avares://Pace/Assets/Fonts#Pace Sans SemiBold");
-    public const double BodySize = 12, AccountSize = 14, BarSize = 40d / 3;
+    // Body text, account names, and titles (tabs, toolbars, section headings).
+    public const double BodySize = 12, AccountSize = 14, TitleSize = 14;
     public static readonly Color Background = Color.FromRgb(20, 23, 29);
     public static Color SectionBackground => Background;
     public static readonly Color InteractionSurface = Color.FromRgb(29, 33, 41);
@@ -72,7 +73,7 @@ public static class Palette
     public static TextBlock Label(string text, bool heading = false, Color? color = null, double? size = null) => new()
     {
         Text = text, FontFamily = heading ? HeadingFontFamily : FontFamily,
-        FontSize = size ?? BodySize, Foreground = Brush(color ?? Muted),
+        FontSize = size ?? BodySize, Foreground = Brush(color ?? Muted), Padding = new Thickness(UiMetrics.TextInset, 0, 0, 0),
         VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis
     };
     public static FilledButton Button(string text) => new(text);

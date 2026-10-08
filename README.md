@@ -130,8 +130,8 @@ local reports and builds are excluded from Git.
 
 ## Assets
 
-- [Lucide icons](https://github.com/lucide-icons/lucide/tree/main/icons): SVGs,
-  PNGs and ISC/Feather MIT notices in `Assets/Icons`.
+- [Lucide icons](https://github.com/lucide-icons/lucide/tree/main/icons): SVGs and
+  ISC/Feather MIT notices in `Assets/Icons`.
 - [Inter 4.1](https://github.com/rsms/inter/releases/tag/v4.1), by Rasmus Andersson:
   Pace Sans is a renamed derivative with a centered tilde. The SIL Open Font
   License and modification notice are in `Assets/Fonts`.

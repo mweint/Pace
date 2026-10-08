@@ -4,7 +4,7 @@ internal sealed class TabStrip : PaintedPanel
 {
     readonly string[] labels;
     readonly Button[] buttons;
-    readonly MotionTween animation = new();
+    readonly MotionTween animation;
     double indicatorPosition;
     int selected;
     public event Action<int>? SelectionChanged;
@@ -22,6 +22,7 @@ internal sealed class TabStrip : PaintedPanel
     }
     public TabStrip(params string[] labels)
     {
+        animation = new(this);
         this.labels = labels;
         Focusable = true;
         FocusAdorner = null;
@@ -38,7 +39,7 @@ internal sealed class TabStrip : PaintedPanel
         Children.AddRange(buttons);
         DetachedFromVisualTree += (_, _) => animation.Dispose();
     }
-    internal double TabWidth(int index) => Palette.TextWidth(labels[index], Palette.BarSize, true) + 2 * UiMetrics.TabTextInset;
+    internal double TabWidth(int index) => Palette.TextWidth(labels[index], Palette.TitleSize, true) + 2 * UiMetrics.TabTextInset;
     Rect TabBounds(int index)
     {
         double left = UiMetrics.ContentInset;
@@ -67,7 +68,7 @@ internal sealed class TabStrip : PaintedPanel
         {
             var bounds = TabBounds(i);
             var ink = i == selected ? Palette.Text : Palette.Muted;
-            var text = Palette.Format(labels[i], ink, Palette.BarSize, true);
+            var text = Palette.Format(labels[i], ink, Palette.TitleSize, true);
             context.DrawText(text, new Point(bounds.X + UiMetrics.TabTextInset, Math.Round((bounds.Height - text.Height) / 2)));
         }
         int lower = Math.Clamp((int)Math.Floor(indicatorPosition), 0, labels.Length - 1), upper = Math.Min(lower + 1, labels.Length - 1);

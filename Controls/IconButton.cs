@@ -3,15 +3,33 @@ namespace Pace;
 public sealed class IconButton : Button
 {
     readonly string artwork;
-    readonly MotionTween fade = new();
+    readonly MotionTween fade;
     readonly FocusCue focus;
     public bool Notification { get; set; }
     public bool Selected { get; set; }
     public bool SuppressFocusOutline { get; set; }
     internal bool ShowsFocusOutline => IsFocused && focus.Visible && !SuppressFocusOutline && IsEnabled;
     public string Kind { get; }
+    bool spinning, turning, framePending;
+    long spinOrigin;
+    double stopAfterTurns;
+    // Turns slowly while work is in progress, then finishes its current turn.
+    public bool Spinning
+    {
+        get => spinning;
+        set
+        {
+            if (value == spinning) return;
+            spinning = value;
+            if (value && !turning && Motion.Enabled) { turning = true; spinOrigin = Environment.TickCount64; }
+            else if (!value) stopAfterTurns = Math.Ceiling(Turns);
+            InvalidateVisual();
+        }
+    }
+    double Turns => (Environment.TickCount64 - spinOrigin) / Motion.SpinMilliseconds;
     public IconButton(string kind, string label)
     {
+        fade = new(this);
         Kind = kind;
         artwork = kind switch
         {
@@ -42,7 +60,13 @@ public sealed class IconButton : Button
         var ink = Palette.IconInk(IsEnabled, Selected);
         var center = new Point(Bounds.Width / 2, Bounds.Height / 2);
         var size = UiMetrics.IconSize;
-        IconArtwork.Draw(context, artwork, new Rect(center.X - size / 2d, center.Y - size / 2d, size, size), ink);
+        if (turning && !spinning && Turns >= stopAfterTurns) turning = false;
+        IconArtwork.Draw(context, artwork, new Rect(center.X - size / 2d, center.Y - size / 2d, size, size), ink, turning ? Turns % 1 * 360 : 0);
+        if (turning && !framePending && TopLevel.GetTopLevel(this) is { } top)
+        {
+            framePending = true;
+            top.RequestAnimationFrame(_ => { framePending = false; InvalidateVisual(); });
+        }
         if (Notification)
             context.DrawEllipse(Palette.Brush(Palette.Warning), null,
                 new Point(Bounds.Width - UiMetrics.FocusInset - UiMetrics.WarningDotSize / 2d, UiMetrics.FocusInset + UiMetrics.WarningDotSize / 2d),

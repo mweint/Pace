@@ -10,7 +10,7 @@ internal sealed class SettingsSection : PaintedPanel, IThemedSection
     };
     public TextBlock Label(string text, bool heading = false)
     {
-        var label = Palette.Label(text, heading, heading ? Palette.Text : Palette.Muted, heading ? Palette.BarSize : Palette.BodySize);
+        var label = Palette.Label(text, heading, heading ? Palette.Text : Palette.Muted, heading ? Palette.TitleSize : Palette.BodySize);
         label.Margin = new Thickness(0, 0, 0, UiMetrics.CardGap);
         Children.Add(label);
         return label;

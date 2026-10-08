@@ -10,7 +10,8 @@ Theme
   Palette owns enabled/disabled, selected, toggle, input, focus and button states.
   FilledButton paints filled text buttons, including disabled text and keyboard
   focus. IconButton keeps its intentionally distinct unfilled treatment.
-  All action icons use the packaged Lucide set at IconSize, including settings.
+  All action icons are drawn from the packaged Lucide SVGs at IconSize with
+  UiMetrics.IconStroke, including settings.
   Returning to a reused window clears retained focus cues; subsequent deliberate
   keyboard navigation still shows its normal focus cue.
   Body 12px; account names SemiBold 14px; toolbar titles SemiBold 13.33px.
@@ -25,7 +26,8 @@ Theme
   Shared border widths, focus insets, switch geometry, badge sizes and toolbar
   spacing belong here. Scale from BaseDpi, never a per-view DPI convention.
   Component-specific field coordinates remain local.
-  Motion: 15ms frames; 200ms linear page crossfade; 260ms popup ease-out;
+  Motion: steps on display frames; 200ms ease-out page handoff in which the
+  window underneath stays opaque (Lead/Trail); 260ms popup ease-out;
   160ms reorder ease-out; 18px travel through Motion.SlideOffset. Respect the
   system animation preference.
   Fades animate WidgetWindow.FrameOpacity, never Window.Opacity. The window
@@ -92,8 +94,9 @@ Verification and repository contents
   Preserve asset licenses and reference SVGs. Follow .editorconfig.
 
 Artwork and fonts
-  Reuse the packaged PNG artwork and bundled font files. Never redraw the Lucide
-  icons; all action icons, including settings, come from the Lucide set.
+  Reuse the packaged service artwork and bundled font files. Never redraw the
+  Lucide icons; IconArtwork strokes their SVG paths. The refresh icon turns
+  slowly (Motion.SpinMilliseconds) while a refresh runs.
   Mouse focus is quiet. Selected filled buttons have no selection outline;
   keyboard focus alone displays Pace's outline. Icon buttons have no tooltips.
   App icon keeps its line pixels with transparent surrounding pixels.

@@ -2,7 +2,7 @@ namespace Pace;
 
 public sealed class AnimatedAccountList : SectionList
 {
-    readonly MotionTween motion = new();
+    readonly MotionTween motion;
     AccountEditorRow? dragging;
     Point dragStart;
     int dragOriginalIndex;
@@ -99,5 +99,9 @@ public sealed class AnimatedAccountList : SectionList
         motion.Dispose();
         foreach (var child in Children) child.RenderTransform = null;
     }
-    public AnimatedAccountList() => DetachedFromVisualTree += (_, _) => { FinishDrag(false); FinishMotion(); };
+    public AnimatedAccountList()
+    {
+        motion = new(this);
+        DetachedFromVisualTree += (_, _) => { FinishDrag(false); FinishMotion(); };
+    }
 }

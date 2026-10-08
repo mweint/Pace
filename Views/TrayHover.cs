@@ -38,7 +38,7 @@ public sealed class TrayHover : WidgetWindow
         protected override void DrawSurface(DrawingContext context)
         {
             SectionStyle.DrawWindowFrame(context, Bounds.Size);
-            if (Entries.Count == 0) { context.DrawText(Palette.Format("No tray accounts selected", Palette.Text), new Point(UiMetrics.HoverInset, UiMetrics.HoverInset)); return; }
+            if (Entries.Count == 0) { context.DrawText(Palette.Format("No tray accounts selected", Palette.Text), new Point(UiMetrics.HoverInset + UiMetrics.TextInset, UiMetrics.HoverInset)); return; }
             for (int i = 0; i < Entries.Count; i++)
             {
                 var (reading, name) = Entries[i];
@@ -49,8 +49,8 @@ public sealed class TrayHover : WidgetWindow
                     reading.Weekly is { } weekly && reading.Error == null ? Palette.Status(weekly, now) : Palette.Muted);
                 double valueWidth = Math.Ceiling(value.Width) + UiMetrics.InlineGap;
                 double valueLeft = Bounds.Width - UiMetrics.HoverInset - valueWidth, nameLeft = UiMetrics.HoverInset + UiMetrics.ServiceIconSize + UiMetrics.CardGap;
-                var title = Palette.Line(name, Palette.Text, valueLeft - nameLeft - UiMetrics.CardGap, Palette.AccountSize, true);
-                context.DrawText(title, new Point(nameLeft, y));
+                var title = Palette.Line(name, Palette.Text, valueLeft - nameLeft - UiMetrics.TextInset - UiMetrics.CardGap, Palette.AccountSize, true);
+                context.DrawText(title, new Point(nameLeft + UiMetrics.TextInset, y));
                 context.DrawText(value, new Point(Bounds.Width - UiMetrics.HoverInset - value.Width, y));
             }
         }

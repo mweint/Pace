@@ -4,14 +4,21 @@ public sealed class AccountsDialog : PageDialog
 {
     readonly AnimatedAccountList list = new()
     {
-        Dock = DockStyle.Fill,
-        Padding = new Padding(UiMetrics.OuterInset),
+        Dock = DockStyle.None,
+        Padding = Padding.Empty,
         FlowDirection = FlowDirection.TopDown,
         WrapContents = false,
-        AutoScroll = true,
+        AutoScroll = false,
         AllowDrop = true
     };
     readonly Settings settings;
+    readonly GeneralSettingsView general;
+    readonly TabStrip tabs = new("General", "Accounts") { Dock = DockStyle.Top };
+    readonly Panel accountTools = new() { Dock = DockStyle.Top, Height = UiMetrics.AccountsToolbarHeight, BackColor = Palette.SectionBackground };
+    int viewportHeight;
+    readonly ScrollViewport accountViewport;
+    internal AnimatedAccountList AccountList => list;
+    bool showingGeneral;
     readonly Action rescan;
     readonly List<Reading> readings;
     bool signingIn;
@@ -22,29 +29,47 @@ public sealed class AccountsDialog : PageDialog
     };
     readonly Action persist;
     readonly Action? changed;
-    public AccountsDialog(List<Reading> readings, Settings settings, Action rescan, Action? persist = null, Action? changed = null)
+    readonly Label trayCount = new()
+    {
+        AutoSize = true, Margin = Padding.Empty,
+        Font = Palette.BodyFont(), ForeColor = Palette.Muted
+    };
+    public AccountsDialog(List<Reading> readings, Settings settings, Action rescan, Action? persist = null, Action? changed = null, AppUpdates? updates = null, Action? installUpdate = null, bool showGeneral = false)
     {
         this.readings = readings;
         this.settings = settings;
         this.rescan = rescan;
         this.persist = persist ?? settings.Save;
         this.changed = changed;
+        accountViewport = new ScrollViewport(list) { Dock = DockStyle.Fill };
         saveTimer.Tick += (_, _) =>
         {
             saveTimer.Stop();
             SaveEdits();
         };
-        Text = "Pace · Accounts";
-        ClientSize = new Size(UiMetrics.PanelWidth, Math.Min(UiMetrics.AccountsToolbarHeight + 18 + Math.Max(1, readings.Count) * (UiMetrics.EditorHeight + UiMetrics.CardGap), Screen.PrimaryScreen!.WorkingArea.Height - 80));
+        Text = "Pace · Settings";
+        ClientSize = new Size(UiMetrics.PanelWidth, UiMetrics.AccountsToolbarHeight);
         StartPosition = FormStartPosition.Manual;
         var footer = CreateFooter();
+        general = new GeneralSettingsView(settings, updates ?? new AppUpdates(settings), changed ?? (() => { }), installUpdate ?? (() => { }), this.persist);
+        tabs.SelectionChanged += index => { if (showingGeneral != (index == 0)) SelectTab(index == 0); };
         foreach (var reading in readings)
             AddAccount(reading);
         if (readings.Count == 0)
-            list.Controls.Add(new Label { Text = "Add a Claude or Codex account below.", Width = UiMetrics.PanelWidth - 2 * UiMetrics.OuterInset, Height = 70, ForeColor = Palette.Muted });
+        {
+            var empty = new InfoSection { Width = UiMetrics.ContentWidth };
+            empty.Add("Add a Claude or Codex account to get started.", Palette.Muted);
+            list.Controls.Add(empty);
+        }
         ConfigureDragAndDrop();
-        Controls.Add(list);
+        Controls.Add(accountViewport);
+        Controls.Add(general);
+        Controls.Add(accountTools);
+        Controls.Add(tabs);
         Controls.Add(footer);
+        SelectTab(showGeneral);
+        FitContent();
+        UpdateTrayCapacity();
     }
 
     Panel CreateFooter()
@@ -52,32 +77,36 @@ public sealed class AccountsDialog : PageDialog
         var footer = new Panel
         {
             Dock = DockStyle.Bottom,
-            Height = UiMetrics.AccountsToolbarHeight,
+            Height = UiMetrics.ToolbarHeight,
             BackColor = Palette.Footer
         };
         var back = new IconButton("back", "Back to usage")
         {
             BackColor = footer.BackColor
         };
-        back.SetBounds(8, 12, UiMetrics.IconButtonSize, UiMetrics.IconButtonSize);
+        back.SetBounds(UiMetrics.ToolbarInset, UiMetrics.ToolbarInset, UiMetrics.IconButtonSize, UiMetrics.IconButtonSize);
         back.Click += (_, _) => Close();
         var title = new Label
         {
-            Text = "Accounts",
-            Left = 44,
-            Top = 19,
-            Width = 116,
-            Height = 24,
+            Text = "Settings",
+            AutoSize = true,
+            Margin = new Padding(0, 0, 0, UiMetrics.BorderWidth * 2),
             Font = Palette.BarFont(),
             ForeColor = Palette.Muted
         };
+        title.Location = new Point(UiMetrics.ToolbarLabelLeft, UiMetrics.ToolbarTextTop);
+        trayCount.AutoSize = false;
+        trayCount.TextAlign = ContentAlignment.MiddleLeft;
+        trayCount.SetBounds(UiMetrics.ContentInset, UiMetrics.OuterInset,
+            174 - UiMetrics.ContentInset - UiMetrics.CardGap, UiMetrics.TextButtonHeight);
         var claude = Palette.Button("Add Claude");
-        claude.SetBounds(174, 12, 96, UiMetrics.TextButtonHeight);
+        claude.SetBounds(174, UiMetrics.OuterInset, 96, UiMetrics.TextButtonHeight);
         claude.Click += async (_, _) => await Login("Claude");
         var codex = Palette.Button("Add Codex");
-        codex.SetBounds(278, 12, 96, UiMetrics.TextButtonHeight);
+        codex.SetBounds(278, UiMetrics.OuterInset, 96, UiMetrics.TextButtonHeight);
         codex.Click += async (_, _) => await Login("Codex");
-        footer.Controls.AddRange([back, title, claude, codex]);
+        footer.Controls.AddRange([back, title]);
+        accountTools.Controls.AddRange([trayCount, claude, codex]);
         NavigationFocus = back;
         return footer;
     }
@@ -96,8 +125,7 @@ public sealed class AccountsDialog : PageDialog
             settings.RemoveAccount(reading.Account);
             this.readings.Remove(reading);
             SaveEdits();
-            var area = AnchorArea;
-            ClientSize = new Size(ClientSize.Width, Math.Min(UiMetrics.AccountsToolbarHeight + 18 + Math.Max(1, this.readings.Count) * (UiMetrics.EditorHeight + UiMetrics.CardGap), area.Height - 80));
+            FitContent();
             Place();
         };
         Point dragStart = Point.Empty;
@@ -132,10 +160,43 @@ public sealed class AccountsDialog : PageDialog
         {
             if (!reverting)
             {
+                UpdateTrayCapacity();
                 saveTimer.Stop();
                 saveTimer.Start();
             }
         };
+    }
+
+    void FitContent()
+    {
+        int GeneralHeight = general.Controls.Cast<Control>().Sum(control => control.Height + control.Margin.Vertical);
+        int accountsHeight = list.Controls.Cast<Control>().Sum(control => control.Height + control.Margin.Vertical) + accountTools.Height;
+        int threeAccountsHeight = list.Controls.Cast<Control>().Take(3).Sum(control => control.Height + control.Margin.Vertical) + accountTools.Height;
+        int contentCap = Math.Max(LogicalToDeviceUnits(UiMetrics.SettingsContentMaxHeight), threeAccountsHeight);
+        viewportHeight = Math.Max(viewportHeight, Math.Min(Math.Max(GeneralHeight, accountsHeight), contentCap));
+        ClientSize = new Size(ClientSize.Width, Math.Min(viewportHeight + LogicalToDeviceUnits(UiMetrics.ToolbarHeight + UiMetrics.SettingsTabsHeight) + Padding.Vertical, AnchorArea.Height - 80));
+        list.PerformLayout();
+    }
+
+    internal void SelectTab(bool showGeneral)
+    {
+        if (showGeneral && !SaveEdits()) { tabs.SelectedIndex = showingGeneral ? 0 : 1; return; }
+        SuspendLayout();
+        showingGeneral = showGeneral;
+        accountViewport.Visible = !showGeneral;
+        general.Visible = showGeneral;
+        accountTools.Visible = !showGeneral;
+        tabs.SelectedIndex = showGeneral ? 0 : 1;
+        FitContent();
+        ResumeLayout(true);
+        if (Visible) Place();
+    }
+
+    public void UpdateConnections(List<Reading> latest)
+    {
+        foreach (var row in list.Controls.OfType<AccountEditorRow>())
+            if (latest.FirstOrDefault(r => r.Account.Key == row.Preference.Key) is { } reading)
+                row.UpdateConnection(reading);
     }
 
     void ConfigureDragAndDrop()
@@ -180,6 +241,8 @@ public sealed class AccountsDialog : PageDialog
     protected override void OnFormClosing(FormClosingEventArgs e)
     {
         saveTimer.Stop();
+        foreach (var row in list.Controls.OfType<AccountEditorRow>())
+            row.NameEditor.FinishEditing(true);
         SaveEdits();
         base.OnFormClosing(e);
     }
@@ -197,6 +260,7 @@ public sealed class AccountsDialog : PageDialog
             }
 
             reverting = false;
+            UpdateTrayCapacity();
             MessageBox.Show(this, $"Choose up to {AccountRules.MaxTrayAccounts} accounts for the tray icon.", "Pace");
             return false;
         }
@@ -209,11 +273,27 @@ public sealed class AccountsDialog : PageDialog
             row.Preference.Alias = edit.Alias;
             row.Preference.Show = edit.Show;
             row.Preference.Tray = edit.Tray;
+            row.Preference.ShowFiveHour = edit.ShowFiveHour;
+            row.Preference.ShowFable = edit.ShowFable;
         }
 
         persist();
         changed?.Invoke();
+        UpdateTrayCapacity();
         return true;
+    }
+
+    void UpdateTrayCapacity()
+    {
+        var rows = list.Controls.OfType<AccountEditorRow>().ToList();
+        int selected = rows.Count(row => row.PanelToggle.Checked && row.TrayToggle.Checked);
+        trayCount.Text = $"Tray {selected}/{AccountRules.MaxTrayAccounts}";
+        foreach (var row in rows)
+        {
+            row.TrayToggle.Enabled = row.TrayToggle.Checked || selected < AccountRules.MaxTrayAccounts;
+            row.TrayToggle.Text = "Tray";
+            row.TrayToggle.AccessibleDescription = row.TrayToggle.Enabled ? "Show account in tray" : "Tray full";
+        }
     }
 
     async Task Login(string service, string? existingFile = null)

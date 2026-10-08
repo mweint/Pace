@@ -5,6 +5,7 @@ public class WidgetForm : Form
     public WidgetForm()
     {
         DoubleBuffered = true;
+        Icon = Palette.ApplicationIcon;
         FormBorderStyle = FormBorderStyle.None;
         BackColor = Palette.Background;
         ForeColor = Palette.Text;
@@ -18,7 +19,7 @@ public class WidgetForm : Form
     protected override void OnPaint(PaintEventArgs e)
     {
         base.OnPaint(e);
-        using var edge = new Pen(Palette.WindowBorder);
-        e.Graphics.DrawRectangle(edge, 0, 0, Width - 1, Height - 1);
+        using var edge = new Pen(Palette.WindowBorder, UiMetrics.WindowBorderWidth);
+        e.Graphics.DrawRectangle(edge, 0, 0, Width - UiMetrics.WindowBorderWidth, Height - UiMetrics.WindowBorderWidth);
     }
 }

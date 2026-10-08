@@ -4,6 +4,9 @@ namespace Usage;
 
 public sealed class Settings
 {
+    public bool RelativeResetTime { get; set; }
+    public bool AutomaticUpdates { get; set; }
+    public string? DismissedUpdateVersion { get; set; }
     public List<Preference> Accounts { get; set; } = [];
     public List<string> ExtraCredentialPaths { get; set; } = [];
     public List<string> RemovedAccountKeys { get; set; } = [];
@@ -43,10 +46,14 @@ public sealed class Settings
     {
         var p = Accounts.FirstOrDefault(p => p.Key == a.Key);
         if (p != null)
+        {
+            p.RememberedAccount = a;
             return p;
+        }
         p = new()
         {
             Key = a.Key,
+            RememberedAccount = a,
             Tray = Accounts.Count(x => x.Tray && x.Show) < AccountRules.MaxTrayAccounts
         };
         Accounts.Add(p);

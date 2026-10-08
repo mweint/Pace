@@ -1,6 +1,6 @@
 namespace Usage;
 
-public sealed class AnimatedAccountList : FlowLayoutPanel
+public sealed class AnimatedAccountList : SectionList
 {
     readonly System.Windows.Forms.Timer motion = new()
     {

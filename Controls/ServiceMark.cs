@@ -1,30 +1,40 @@
 using System.Drawing.Drawing2D;
-using System.Drawing.Imaging;
 
 namespace Usage;
 
 public static class ServiceMark
 {
+    static readonly Bitmap Claude = IconButton.LoadArtwork("claude");
+    static readonly Bitmap Codex = IconButton.LoadArtwork("codex");
+    static readonly Dictionary<int, Bitmap> SmallCodex = new[] { 16, 20, 24, 32 }
+        .ToDictionary(size => size, size => IconButton.LoadArtwork($"codex-{size}"));
+
+    public static Bitmap ButtonArtwork(string service)
+    {
+        var image = new Bitmap(UiMetrics.ServiceIconSize + UiMetrics.CardGap, UiMetrics.ServiceIconSize);
+        using var graphics = Graphics.FromImage(image);
+        Draw(graphics, service, 0, 0);
+        return image;
+    }
+
     public static void Draw(Graphics g, string service, float x, float y)
     {
-        using var pen = new Pen(service == "Claude" ? Palette.Claude : Palette.Text, 1.5f)
+        // Provider artwork retains its original color and proportions in every view.
+        using var transform = g.Transform;
+        float scale = transform.Elements[0];
+        int pixels = (int)Math.Round(UiMetrics.ServiceIconSize * scale);
+        var artwork = service == "Claude" ? Claude : SmallCodex.GetValueOrDefault(pixels, Codex);
+        var state = g.Save();
+        try
         {
-            StartCap = LineCap.Round,
-            EndCap = LineCap.Round
-        };
-        if (service == "Claude")
-        {
-            for (int i = 0; i < 6; i++)
-            {
-                double angle = i * Math.PI / 6;
-                float dx = (float)Math.Cos(angle) * 7, dy = (float)Math.Sin(angle) * 7;
-                g.DrawLine(pen, x + 7 - dx, y + 7 - dy, x + 7 + dx, y + 7 + dy);
-            }
+            // Bitmap interpolation, rather than SmoothingMode, controls small-image quality.
+            g.InterpolationMode = InterpolationMode.HighQualityBicubic;
+            g.PixelOffsetMode = PixelOffsetMode.Half;
+            g.DrawImage(artwork, new RectangleF(x, y, UiMetrics.ServiceIconSize, UiMetrics.ServiceIconSize));
         }
-        else
+        finally
         {
-            g.DrawLines(pen, new PointF[] { new(x + 1, y + 3), new(x + 5, y + 7), new(x + 1, y + 11) });
-            g.DrawLine(pen, x + 8, y + 11, x + 14, y + 11);
+            g.Restore(state);
         }
     }
 }

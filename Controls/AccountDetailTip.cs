@@ -1,5 +1,5 @@
 namespace Usage;
-// Only refresh errors need supplemental detail; identity is visible in Accounts.
+// Reset countdowns, hidden-limit warnings and refresh errors share a themed tooltip.
 internal sealed class AccountDetailTip : IDisposable
 {
     readonly Control owner;

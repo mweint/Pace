@@ -40,14 +40,24 @@ public static partial class Providers
     public static async Task<Reading> Fetch(Account account)
     {
         DateTimeOffset now = DateTimeOffset.UtcNow;
-        Reading Failed(string message) => new(account, null, message, now);
+        Reading Failed(string message, ConnectionIssue issue = ConnectionIssue.None) => new(account, null, message, now, ConnectionIssue: issue);
+        Login? login;
+        try
+        {
+            login = OpenLogin(account.CredentialPath);
+        }
+        catch
+        {
+            login = null;
+        }
+        if (login == null)
+            return Failed("Sign-in is missing or unreadable. Reconnect in Accounts.", ConnectionIssue.CredentialsMissing);
+        if (login.Account.Key != account.Key)
+            return Failed("A different account is signed in. Reconnect in Accounts.", ConnectionIssue.AccountChanged);
         if (Cooldowns.TryGetValue(account.Key, out var eligible) && now < eligible)
             return Failed($"Retry in {PaceMath.Duration(eligible - now)} (service rate limit)");
         try
         {
-            Login? login = OpenLogin(account.CredentialPath);
-            if (login == null || login.Account.Key != account.Key)
-                return Failed("Sign-in changed; refresh account discovery");
             string endpoint = account.Service == "Claude" ? "https://api.anthropic.com/api/oauth/usage?cedar_ember=1&skip_spend=1" : "https://chatgpt.com/backend-api/wham/usage";
             using var message = new HttpRequestMessage(HttpMethod.Get, endpoint);
             message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", login.Access);
@@ -65,7 +75,7 @@ public static partial class Providers
             }
 
             if (reply.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
-                return Failed("Open this account in its CLI to renew sign-in, then refresh");
+                return Failed("Service rejected this sign-in. Reconnect in Accounts.", ConnectionIssue.SignInRejected);
             if (!reply.IsSuccessStatusCode)
                 return Failed($"Service returned HTTP {(int)reply.StatusCode}");
             await using var body = await reply.Content.ReadAsStreamAsync();

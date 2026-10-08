@@ -9,12 +9,15 @@
     <RootNamespace>Usage</RootNamespace>
     <Product>Pace</Product>
     <Title>Pace</Title>
-    <Version>0.1.0</Version>
+    <Version>0.2.0</Version>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <ApplicationIcon>Assets\Icons\pace.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
     <Content Include="Assets\Fonts\*" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <EmbeddedResource Include="Assets\Icons\*.png" />
+    <EmbeddedResource Include="Assets\Icons\pace.ico" />
+    <EmbeddedResource Include="scripts\Install-Update.ps1" />
     <Content Include="Assets\Icons\*.svg;Assets\Icons\*.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

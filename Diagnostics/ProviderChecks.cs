@@ -21,6 +21,16 @@ internal static class ProviderChecks
         Check(Providers.ParseCodex(swapped, now)?.Used == 23, "Codex identifies weekly by duration when windows swap");
         var claude = JsonNode.Parse("""{"five_hour":{"utilization":99},"seven_day":{"utilization":42,"resets_at":"2026-10-10T12:00:00Z"}}""")!.AsObject();
         Check(Providers.ParseClaude(claude)?.Used == 42, "Claude reads overall seven-day allowance");
+        var resetless = JsonNode.Parse("""{"five_hour":{"utilization":0,"resets_at":null},"seven_day":{"utilization":42,"resets_at":"2026-10-10T12:00:00Z"}}""")!.AsObject();
+        var resetlessLimits = Providers.ParseLimits("Claude", resetless, now);
+        var resetlessSession = resetlessLimits.Single(limit => limit.Key == "session");
+        Check(resetlessSession.Window.Used == 0 && resetlessSession.Window.Reset == null &&
+            PaceMath.Calculate(resetlessSession.Window, now) == null,
+            "Five-hour usage remains visible when a reset response has no reset time");
+        Check(CompactLimitBars.For(new(new("resetless", "Claude", "Sample", ""), Providers.ParseClaude(resetless), null, now, Limits: resetlessLimits)).Count == 1,
+            "A zero-usage five-hour limit without a reset still has an overview bar");
+        Check(PaceMath.Classify(resetlessSession.Window with { Used = 100 }, now) == PaceState.Exhausted,
+            "Known exhausted usage remains a warning even if the reset time is missing");
         var detailClaude = JsonNode.Parse("""{"five_hour":{"utilization":9,"resets_at":"2026-10-06T15:00:00Z"},"seven_day":{"utilization":18,"resets_at":"2026-10-08T12:00:00Z"},"limits":[{"group":"weekly","percent":3,"resets_at":"2026-10-08T12:00:00Z","scope":{"model":{"display_name":"Fable"}}}],"seven_day_sonnet":null}""")!.AsObject();
         var detailLimits = Providers.ParseLimits("Claude", detailClaude, now);
         Check(detailLimits.Count == 3 && detailLimits.Single(l => l.Key == "session").Window.Period == TimeSpan.FromHours(5) && detailLimits.Single(l => l.Name == "Fable · Weekly").Window.Used == 3, "Details retain real session and model-scoped allowances without empty sections");

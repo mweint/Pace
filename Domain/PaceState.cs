@@ -7,5 +7,6 @@ public enum PaceState
     Unavailable,
     OnPace,
     Above,
-    Below
+    Below,
+    Exhausted
 }

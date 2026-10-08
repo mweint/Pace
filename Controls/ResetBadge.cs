@@ -9,8 +9,8 @@ internal sealed class ResetBadge : Control
     public ResetBadge()
     {
         DoubleBuffered = true;
-        BackColor = Palette.Card;
-        Size = new Size(42, 24);
+        BackColor = Palette.SectionBackground;
+        Size = new Size(UiMetrics.ResetBadgeWidth, UiMetrics.ResetBadgeHeight);
         tip = new AccountDetailTip(this);
     }
 
@@ -30,14 +30,17 @@ internal sealed class ResetBadge : Control
         base.OnPaint(e);
         if (bank == null)
             return;
-        float scale = DeviceDpi / 96f;
+        float scale = DeviceDpi / (float)UiMetrics.BaseDpi;
         e.Graphics.ScaleTransform(scale, scale);
         var now = DateTimeOffset.UtcNow;
-        Color ink = !stale && bank.ExpiringSoon(now) ? Palette.ResetWarning : Palette.Muted;
-        IconButton.DrawArtwork(e.Graphics, artwork, new Rectangle(2, 6, 12, 12), ink);
+        Color ink = !stale && bank.ExpiringSoon(now) ? Palette.Warning : Palette.Muted;
+        IconButton.DrawArtwork(e.Graphics, artwork, new Rectangle(UiMetrics.ResetBadgeIconInset,
+            (UiMetrics.ResetBadgeHeight - UiMetrics.ResetBadgeIconSize) / 2, UiMetrics.ResetBadgeIconSize, UiMetrics.ResetBadgeIconSize), ink);
         using var font = Palette.BodyFont();
         using var brush = new SolidBrush(ink);
-        e.Graphics.DrawString(bank.Available(now).ToString(), font, brush, 19, 4);
+        e.Graphics.DrawString(bank.Available(now).ToString(), font, brush,
+            UiMetrics.ResetBadgeIconInset + UiMetrics.ResetBadgeIconSize + UiMetrics.ResetBadgeTextGap,
+            (UiMetrics.ResetBadgeHeight - font.GetHeight(UiMetrics.BaseDpi)) / 2);
     }
 
     protected override void Dispose(bool disposing)

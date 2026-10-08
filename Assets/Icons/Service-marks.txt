@@ -1,0 +1,12 @@
+Service artwork
+
+claude.png: official Claude icon from https://claude.com/icon.png
+codex.png: official dark-background OpenAI mark from the Windows Codex app,
+Square44x44Logo.targetsize-96_altform-unplated.png.
+codex-16.png, codex-20.png, codex-24.png, codex-32.png: corresponding
+official target-size variants from the same Windows app.
+
+The files are displayed without recoloring or changing their proportions.
+Claude and its marks belong to Anthropic. OpenAI and its marks belong to OpenAI.
+These marks identify the corresponding services; Pace is an independent app.
+OpenAI brand guidance: https://openai.com/brand/

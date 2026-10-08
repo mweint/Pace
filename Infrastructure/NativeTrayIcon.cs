@@ -10,6 +10,15 @@ public sealed class NativeTrayIcon : NativeWindow, IDisposable
     bool visible, added;
     Icon? icon;
     public bool Added => added;
+    public Rectangle? Bounds
+    {
+        get
+        {
+            var identifier = new IconIdentifier { Size = (uint)Marshal.SizeOf<IconIdentifier>(), Window = Handle, Id = 1 };
+            return ShellNotifyIconGetRect(ref identifier, out var bounds) == 0
+                ? Rectangle.FromLTRB(bounds.Left, bounds.Top, bounds.Right, bounds.Bottom) : null;
+        }
+    }
     public bool TooltipSuppressed
     {
         get; private set;
@@ -133,6 +142,21 @@ public sealed class NativeTrayIcon : NativeWindow, IDisposable
     [DllImport("shell32.dll", EntryPoint = "Shell_NotifyIconW", CharSet = CharSet.Unicode)]
     [return: MarshalAs(UnmanagedType.Bool)]
     static extern bool ShellNotifyIcon(uint operation, ref NotifyData data);
+    [StructLayout(LayoutKind.Sequential)]
+    struct IconIdentifier
+    {
+        public uint Size;
+        public IntPtr Window;
+        public uint Id;
+        public Guid Guid;
+    }
+    [StructLayout(LayoutKind.Sequential)]
+    struct IconBounds
+    {
+        public int Left, Top, Right, Bottom;
+    }
+    [DllImport("shell32.dll", EntryPoint = "Shell_NotifyIconGetRect")]
+    static extern int ShellNotifyIconGetRect(ref IconIdentifier identifier, out IconBounds bounds);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     static extern uint RegisterWindowMessage(string message);
     [DllImport("user32.dll")]

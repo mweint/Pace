@@ -4,7 +4,7 @@ $repo = Split-Path $PSScriptRoot -Parent
 $files = @(git -C $repo ls-files --cached)
 if ($LASTEXITCODE -ne 0 -or !$files.Count) { throw 'Stage intended files before auditing.' }
 $issues = [System.Collections.Generic.List[string]]::new()
-$allowed = @('.cs', '.csproj', '.md', '.txt', '.svg', '.png', '.ttf', '.ps1')
+$allowed = @('.cs', '.csproj', '.md', '.txt', '.svg', '.png', '.ico', '.ttf', '.ps1')
 $metadata = @('.gitignore', '.gitattributes', '.editorconfig')
 $patterns = @(
     '(?i)\bsk-(?:proj-|ant-)?[A-Za-z0-9_-]{20,}',
@@ -20,7 +20,7 @@ foreach ($file in $files) {
         $issues.Add("Unexpected or local-only file: $file")
         continue
     }
-    if ($extension -in @('.png', '.ttf')) { continue }
+    if ($extension -in @('.png', '.ico', '.ttf')) { continue }
     $lines = @(git -C $repo show ":$file")
     if ($LASTEXITCODE -ne 0) { throw "Cannot inspect staged file: $file" }
     $text = $lines -join "`n"

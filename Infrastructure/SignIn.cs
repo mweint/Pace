@@ -6,9 +6,9 @@ public static class SignIn
 {
     public static async Task Begin(string service, Settings settings, string? existingFile = null)
     {
-        string? executable = FindExecutable(service);
+        string? executable = ClientDiscovery.Find(service);
         if (executable == null)
-            throw new InvalidOperationException($"Install the {service} CLI first, then try again.");
+            throw new InvalidOperationException(service == "Claude" ? "Install Claude Code, then try again." : "Install Codex desktop or the Codex CLI, then try again.");
         string folder = existingFile == null ? Path.Combine(Settings.DirectoryPath, "accounts", service.ToLowerInvariant(), Guid.NewGuid().ToString("N")) : Path.GetDirectoryName(existingFile)!;
         Directory.CreateDirectory(folder);
         string file = existingFile ?? Path.Combine(folder, service == "Claude" ? ".credentials.json" : "auth.json");
@@ -28,7 +28,7 @@ public static class SignIn
         start.ArgumentList.Add("-Command");
         // Paths are literal PowerShell strings; apostrophes are doubled, with no interpolation of user input.
         string literal = "'" + executable.Replace("'", "''") + "'";
-        start.ArgumentList.Add($"$ErrorActionPreference = 'Stop'; & {literal} {(service == "Claude" ? "auth login --claudeai" : "login")}; exit $LASTEXITCODE");
+        start.ArgumentList.Add($"$ErrorActionPreference = 'Stop'; & {literal} {LoginArguments(service)}; exit $LASTEXITCODE");
         start.Environment[service == "Claude" ? "CLAUDE_CONFIG_DIR" : "CODEX_HOME"] = folder;
         // This login is for a subscription, not an inherited API-key or managed-token session.
         foreach (string variable in service == "Claude" ? new[]
@@ -49,8 +49,8 @@ public static class SignIn
             start.Environment.Remove(variable);
         var process = Process.Start(start) ?? throw new InvalidOperationException("Could not open sign-in.");
         await Finish(process);
-        if (Providers.ReadAccount(file) is { } account)
-            settings.RestoreAccount(account);
+        var account = Providers.ReadAccount(file) ?? throw new InvalidOperationException("Sign-in finished without a readable account. Please try again.");
+        settings.RestoreAccount(account);
         settings.Save();
     }
 
@@ -66,37 +66,7 @@ public static class SignIn
         }
     }
 
-    static string? FindExecutable(string service)
-    {
-        string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        string local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        var known = service == "Claude" ? new[]
-        {
-            Path.Combine(home, ".local", "bin", "claude.exe"),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "npm", "claude.cmd")
-        }
-
-        : new[]
-        {
-            Path.Combine(local, "Programs", "OpenAI", "Codex", "bin", "codex.exe")
-        };
-        foreach (string file in known)
-            if (File.Exists(file))
-                return file;
-        foreach (string directory in (Environment.GetEnvironmentVariable("PATH") ?? "").Split(Path.PathSeparator))
-            foreach (string extension in new[]
-            {
-                ".exe",
-                ".cmd"
-            }
-
-            )
-            {
-                string path = Path.Combine(directory, service.ToLowerInvariant() + extension);
-                if (File.Exists(path))
-                    return path;
-            }
-
-        return null;
-    }
+    // Only Pace's isolated account folder uses file storage; existing client settings stay intact.
+    internal static string LoginArguments(string service) => service == "Claude"
+        ? "auth login --claudeai" : "-c 'cli_auth_credentials_store=\"file\"' login";
 }

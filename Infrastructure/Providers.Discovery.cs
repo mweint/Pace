@@ -152,6 +152,17 @@ public static partial class Providers
             }
         }
 
+        return RememberAccounts(accounts.Values, settings);
+    }
+
+    internal static List<Account> RememberAccounts(IEnumerable<Account> discovered, Settings settings)
+    {
+        var accounts = discovered.Where(a => !settings.IsRemoved(a)).ToDictionary(a => a.Key);
+        foreach (var account in accounts.Values)
+            settings.For(account);
+        foreach (var preference in settings.Accounts)
+            if (preference.RememberedAccount is { } remembered && !settings.IsRemoved(remembered))
+                accounts.TryAdd(remembered.Key, remembered);
         return accounts.Values.ToList();
     }
 }

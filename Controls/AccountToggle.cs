@@ -23,12 +23,14 @@ public sealed class AccountToggle : Control
         Font = Palette.BodyFont();
         Cursor = Cursors.Hand;
         TabStop = true;
-        BackColor = Palette.Card;
+        BackColor = Palette.SectionBackground;
         AccessibleRole = AccessibleRole.CheckButton;
     }
 
     protected override void OnClick(EventArgs e)
     {
+        if (!Enabled)
+            return;
         Focus();
         Checked = !Checked;
         base.OnClick(e);
@@ -57,23 +59,36 @@ public sealed class AccountToggle : Control
         Invalidate();
     }
 
+    public override Size GetPreferredSize(Size proposedSize)
+    {
+        using var graphics = CreateGraphics();
+        float scale = DeviceDpi / (float)UiMetrics.BaseDpi;
+        int textWidth = (int)Math.Ceiling(graphics.MeasureString(Text, Font).Width);
+        return new Size(LogicalToDeviceUnits(UiMetrics.ToggleTrackWidth + UiMetrics.ToggleTextGap + UiMetrics.InlineGap) + textWidth,
+            (int)Math.Ceiling(UiMetrics.ToggleHeight * scale));
+    }
+
     protected override void OnPaint(PaintEventArgs e)
     {
         var g = e.Graphics;
         g.Clear(BackColor);
         g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-        float scale = DeviceDpi / 96f;
+        float scale = DeviceDpi / (float)UiMetrics.BaseDpi;
         g.ScaleTransform(scale, scale);
-        using var track = new SolidBrush(Checked ? Palette.Below : Palette.ToggleOff);
-        g.FillRectangle(track, 0, 7, 24, 12);
-        using var knob = new SolidBrush(Checked ? Palette.Background : Palette.Text);
-        g.FillRectangle(knob, Checked ? 14 : 2, 9, 8, 8);
-        using var ink = new SolidBrush(Palette.Text);
-        g.DrawString(Text, Font, ink, 31, 5);
+        float trackTop = (UiMetrics.ToggleHeight - UiMetrics.ToggleTrackHeight) / 2;
+        using var track = new SolidBrush(Palette.ToggleTrack(Enabled, Checked));
+        g.FillRectangle(track, 0, trackTop, UiMetrics.ToggleTrackWidth, UiMetrics.ToggleTrackHeight);
+        using var knob = new SolidBrush(Palette.ToggleKnob(Checked));
+        g.FillRectangle(knob, Checked ? UiMetrics.ToggleTrackWidth - UiMetrics.ToggleKnobInset - UiMetrics.ToggleKnobSize : UiMetrics.ToggleKnobInset,
+            trackTop + UiMetrics.ToggleKnobInset, UiMetrics.ToggleKnobSize, UiMetrics.ToggleKnobSize);
+        using var ink = new SolidBrush(Palette.ControlText(Enabled));
+        g.DrawString(Text, Font, ink, UiMetrics.ToggleTrackWidth + UiMetrics.ToggleTextGap,
+            (UiMetrics.ToggleHeight - Font.GetHeight(UiMetrics.BaseDpi)) / 2);
         if (Focused && ShowFocusCues)
         {
-            using var edge = new Pen(Palette.Muted);
-            g.DrawRectangle(edge, 0, 5, Width / scale - 2, 17);
+            using var edge = new Pen(Palette.FocusBorder, UiMetrics.BorderWidth);
+            g.DrawRectangle(edge, 0, UiMetrics.FocusInset, Width / scale - UiMetrics.EmphasisBorderWidth,
+                UiMetrics.ToggleHeight - 2 * UiMetrics.FocusInset);
         }
     }
 }

@@ -13,10 +13,10 @@ public static partial class Providers
                 result.Add(new("weekly", "Weekly", week));
             void Add(string key, string name, JsonNode? used, JsonNode? reset, TimeSpan period)
             {
-                if (Number(used) is not { } percent || !double.IsFinite(percent) || percent < 0 || ResetExpiry(reset) is not { } end)
+                if (Number(used) is not { } percent || !double.IsFinite(percent) || percent < 0)
                     return;
                 if (result.All(r => r.Key != key))
-                    result.Add(new(key, name, new(percent, end, period)));
+                    result.Add(new(key, name, new(percent, ResetExpiry(reset), period)));
             }
 
             Add("session", "Five-hour", data["five_hour"]?["utilization"], data["five_hour"]?["resets_at"], TimeSpan.FromHours(5));

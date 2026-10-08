@@ -5,6 +5,8 @@ internal static class Program
     [STAThread]
     static void Main(string[] args)
     {
+        if (args.Any(arg => arg is "--self-test" or "--render-preview"))
+            Application.SetUnhandledExceptionMode(UnhandledExceptionMode.ThrowException);
         ApplicationConfiguration.Initialize();
         if (args.Contains("--self-test"))
         {
@@ -26,6 +28,8 @@ internal static class Program
 
         using var mutex = new Mutex(true, "Local\\Pace.TrayApp.V1", out bool created);
         if (!created)
+            return;
+        if (Settings.Load().AutomaticUpdates && UpdateInstaller.Apply())
             return;
         Application.Run(new TrayApp());
     }

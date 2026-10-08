@@ -26,10 +26,9 @@ public static class TrayDrawing
         for (int i = 0; i < count; i++)
         {
             var r = i < readings.Count ? readings[i] : null;
-            var pace = r?.Weekly is { } w && r.Error == null ? PaceMath.Calculate(w, now) : null;
             int y = firstY + i * spacing;
-            var state = PaceMath.Classify(pace);
-            using var ink = new SolidBrush(state == PaceState.OnPace ? Palette.TrayOnPace : Palette.Status(pace));
+            var state = r?.Weekly is { } weekly && r.Error == null ? PaceMath.Classify(weekly, now) : PaceState.Unavailable;
+            using var ink = new SolidBrush(state == PaceState.OnPace ? Palette.TrayOnPace : Palette.Status(state));
             g.FillRectangle(ink, lineLeft, y, lineRight - lineLeft, thickness);
         }
 

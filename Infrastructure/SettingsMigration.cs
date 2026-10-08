@@ -26,7 +26,11 @@ internal static class SettingsMigration
         settings.ExtraCredentialPaths = settings.ExtraCredentialPaths.Select(Rewrite).ToList();
         settings.RemovedAccountKeys = settings.RemovedAccountKeys.Select(Rewrite).ToList();
         foreach (var account in settings.Accounts)
+        {
             account.Key = Rewrite(account.Key);
+            if (account.RememberedAccount is { } remembered)
+                account.RememberedAccount = remembered with { Key = Rewrite(remembered.Key), CredentialPath = Rewrite(remembered.CredentialPath) };
+        }
         return changed;
     }
 }

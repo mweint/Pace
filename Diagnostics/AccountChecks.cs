@@ -22,9 +22,9 @@ internal static partial class ViewChecks
         }
 
         Check(accountsDialog.ClientSize.Width == layout.ClientSize.Width && accountsDialog.Controls.OfType<Panel>().Any(p => p.Dock == DockStyle.Bottom && p.Controls.OfType<IconButton>().Any()), "Accounts matches main width and uses shared bottom navigation");
-        var editable = accountsDialog.Controls.OfType<FlowLayoutPanel>().Single().Controls.OfType<AccountEditorRow>().First();
+        var editable = accountsDialog.AccountList.Controls.OfType<AccountEditorRow>().First();
         Check(!editable.NameInput.Focused && editable.NameInput.SelectionLength == 0 && editable.NameInput.ReadOnly, "Accounts opens with names unselected and outside editing mode");
-        var animatedList = accountsDialog.Controls.OfType<AnimatedAccountList>().Single();
+        var animatedList = accountsDialog.AccountList;
         animatedList.MoveRow(editable, 2);
         int startingTop = editable.Top;
         Pump(80);
@@ -33,7 +33,9 @@ internal static partial class ViewChecks
         Check(animatedList.Controls.GetChildIndex(editable) == 2, "Animated reorder updates the actual saved row order");
         animatedList.MoveRow(editable, 0);
         animatedList.FinishMotion();
+        editable.NameEditor.BeginEditing();
         editable.NameInput.Text = "Saved name";
+        editable.NameEditor.FinishEditing(true);
         editable.PanelToggle.Checked = false;
         long saveDeadline = Environment.TickCount64 + 450;
         while (Environment.TickCount64 < saveDeadline)

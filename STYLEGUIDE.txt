@@ -5,6 +5,11 @@ controls own field geometry. Do not create a parallel theme.
 
 Theme
   Palette: semantic colors, process-private Pace Sans fonts, filled buttons.
+  Warning is the sole attention role for expiry, limits, reconnect and errors;
+  it shares the orange Above color. Do not add feature-specific warning colors.
+  Palette owns enabled/disabled, selected, toggle, input, focus and button states.
+  FilledButton paints filled text buttons, including disabled text and keyboard
+  focus. IconButton keeps its intentionally distinct unfilled treatment.
   Body 9pt; account names SemiBold 10.5pt; toolbar titles SemiBold 10pt.
   All Font creation belongs here. Shared Segoe UI fallback handles missing assets;
   self-tests verify the packaged families load without fallback.
@@ -12,6 +17,8 @@ Theme
   ThemedToolTip uses BodyFont and Palette colors for reset/error information.
   Windows owns tooltip placement and timing, not typography or painting.
   UiMetrics: logical dimensions at 96 DPI, spacing, targets and tooltip timing.
+  Shared border widths, focus insets, switch geometry, badge sizes and toolbar
+  spacing belong here. Scale from BaseDpi, never a per-view DPI convention.
   Component-specific field coordinates remain local.
   Motion: 15ms frames; 200ms linear page crossfade; 260ms popup ease-out;
   160ms reorder ease-out; 18px page travel. Respect Windows animation preference.
@@ -34,8 +41,9 @@ Controls
   differs from filled text buttons. Suppress outgoing outlines.
   AccountToggle: rectangular switch, BodyFont, Space support, keyboard-only focus.
   AccountRow and AccountEditorRow own layout and consume shared theme/domain rules.
-  AccountDetailTip uses ThemedToolTip. Healthy cards have no extra tooltip.
-  ResetBadge shares the countdown line; amber warns within seven days. Missing
+  AccountDetailTip uses ThemedToolTip for reset countdowns, warnings and errors.
+  Reset labels use local clock time, with a weekday on other calendar days.
+  ResetBadge shares the reset-time line; Warning marks expiry within seven days. Missing
   dates remain unavailable; identical expiries combine with a trailing count.
   AnimatedAccountList owns reorder interpolation and saved row order.
   TrayDrawing uses native taskbar size and whole-pixel equal-width lines. Stronger

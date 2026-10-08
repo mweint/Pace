@@ -19,7 +19,14 @@ internal static class SelfTests
             var now = DateTimeOffset.Parse("2026-10-06T12:00:00Z");
             ThemeChecks.Run(Check);
             SettingsChecks.Run(Check);
+            UpdateChecks.Run(Check);
+            OnboardingChecks.Run(Check);
+            ClientChecks.Run(Check);
+            ConnectionChecks.Run(Check);
+            NameEditingChecks.Run(Check);
+            LifecycleChecks.Run(Check);
             PaceChecks.Run(Check, now);
+            LimitWarningChecks.Run(Check, now);
             var limits = ProviderChecks.Run(Check, now);
             ViewChecks.Run(Check, now, limits);
             Write(new
@@ -34,6 +41,7 @@ internal static class SelfTests
             {
                 Passed = false,
                 Error = e.Message,
+                Stack = e.StackTrace,
                 Checks = checks
             });
             Environment.ExitCode = 1;

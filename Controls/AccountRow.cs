@@ -2,7 +2,7 @@ using System.Drawing.Drawing2D;
 
 namespace Usage;
 
-public sealed class AccountRow : Control
+public sealed class AccountRow : Control, IThemedSection
 {
     readonly AccountDetailTip detail;
     readonly ResetBadge resetBadge = new();
@@ -16,101 +16,175 @@ public sealed class AccountRow : Control
     }
 
     readonly bool showServiceMark;
-    public AccountRow(Reading reading, string alias, bool showServiceMark = true)
+    readonly bool showSupplementalLimits;
+    readonly bool compactDetail;
+    SectionGroup IThemedSection.Group => compactDetail ? SectionGroup.SecondaryLimits : SectionGroup.None;
+    Preference? preference;
+    public bool RelativeResetTime { get; set; }
+    bool showSeparator;
+    public bool ShowSeparator { get => showSeparator; set { if (showSeparator != value) { showSeparator = value; Invalidate(); } } }
+    public AccountRow(Reading reading, string alias, bool showServiceMark = true, bool showSupplementalLimits = false, Preference? preference = null, bool compactDetail = false)
     {
         this.showServiceMark = showServiceMark;
+        this.showSupplementalLimits = showSupplementalLimits;
+        this.preference = preference;
+        this.compactDetail = compactDetail;
         detail = new AccountDetailTip(this);
         Reading = reading;
         Alias = alias;
         DoubleBuffered = true;
-        BackColor = Palette.Card;
-        Height = UiMetrics.AccountHeight;
+        SectionStyle.Apply(this);
+        resetBadge.BackColor = BackColor;
         Controls.Add(resetBadge);
         resetBadge.Click += (_, e) => OnClick(e);
         UpdateReading(reading, alias);
     }
 
-    public void UpdateReading(Reading reading, string alias)
+    public void UpdateReading(Reading reading, string alias, Preference? preference = null)
     {
         Reading = reading;
         Alias = alias;
-        AccessibleName = $"{reading.Account.Service}, {alias}, {reading.Weekly?.Used:0}% used, {PaceMath.Summary(reading.Weekly is { } w ? PaceMath.Calculate(w, DateTimeOffset.UtcNow) : null)}";
-        detail.Text = reading.Error == null ? "" : $"{reading.Account.Service} · {reading.Account.Label}\n{reading.Error}\nLast successful reading: {reading.Updated.ToLocalTime():g}";
+        if (preference != null)
+            this.preference = preference;
+        using var title = TitleFont();
+        using var body = Palette.BodyFont();
+        Height = (int)Math.Ceiling(LayoutFor(title, body).Height * DeviceDpi / (float)UiMetrics.BaseDpi);
+        AccessibleName = $"{reading.Account.Service}, {alias}, {reading.Weekly?.Used:0}% used, {(reading.Weekly is { } w ? PaceMath.Summary(w, DateTimeOffset.UtcNow) : PaceMath.Summary(null))}";
+        var details = new List<string>();
+        if (reading.Weekly is { } resetWindow)
+        {
+            details.Add(PaceMath.ResetCountdown(resetWindow.Reset, DateTimeOffset.UtcNow));
+            AccessibleName += ", " + PaceMath.ResetLabel(resetWindow.Reset, DateTimeOffset.UtcNow);
+        }
+        if (reading.Error != null)
+            details.Add($"{reading.Account.Service} · {reading.Account.Label}\n{reading.Error}\nLast successful reading: {reading.Updated.ToLocalTime():g}");
+        var warning = showSupplementalLimits
+            ? LimitWarning.Summary(LimitWarning.Hidden(reading, this.preference, DateTimeOffset.UtcNow)) : "";
+        if (warning.Length > 0)
+        {
+            details.Add(warning + "\nClick for account details");
+            AccessibleName += ", " + warning;
+        }
+        detail.Text = string.Join("\n", details);
         resetBadge.UpdateBank(reading.Resets, reading.Error != null || reading.ResetError != null);
         Invalidate();
     }
+
+    Font TitleFont() => compactDetail ? Palette.DetailLimitFont() : Palette.AccountFont();
+
+    AccountRowLayout LayoutFor(Font title, Font body) => AccountRowLayout.Create(Width * (float)UiMetrics.BaseDpi / DeviceDpi,
+        title, body, Reading.Weekly != null, showSupplementalLimits ? CompactLimitBars.For(Reading, preference).Count : 0, compactDetail);
 
     protected override void OnPaint(PaintEventArgs e)
     {
         base.OnPaint(e);
         var g = e.Graphics;
         g.SmoothingMode = SmoothingMode.AntiAlias;
-        float s = DeviceDpi / 96f;
+        float s = DeviceDpi / (float)UiMetrics.BaseDpi;
         g.ScaleTransform(s, s);
-        float width = Width / s;
-        using var title = Palette.AccountFont();
+        using var title = TitleFont();
         using var small = Palette.BodyFont();
+        var layout = LayoutFor(title, small);
         using var fg = new SolidBrush(Palette.Text);
         using var muted = new SolidBrush(Palette.Muted);
-        using var nameFormat = new StringFormat
+        using var nameFormat = new StringFormat(StringFormat.GenericTypographic)
         {
-            Trimming = StringTrimming.EllipsisCharacter
+            FormatFlags = StringFormatFlags.NoWrap
         };
         using var rightFormat = new StringFormat(StringFormat.GenericTypographic)
         {
-            Alignment = StringAlignment.Far
+            Alignment = StringAlignment.Far,
+            FormatFlags = StringFormatFlags.NoWrap
         };
         using var countdownFormat = new StringFormat
         {
             Trimming = StringTrimming.EllipsisCharacter,
             FormatFlags = StringFormatFlags.NoWrap
         };
+        SectionStyle.DrawSeparator(g, Width / s, ShowSeparator);
         if (showServiceMark)
-            ServiceMark.Draw(g, Reading.Account.Service, 14, 15);
-        float titleX = showServiceMark ? 38 : 14;
-        g.DrawString(Alias, title, fg, new RectangleF(titleX, 11, width - titleX - 171, 22), nameFormat);
+            ServiceMark.Draw(g, Reading.Account.Service, layout.Header.Left, layout.Header.Top + (layout.Header.Height - UiMetrics.ServiceIconSize) / 2);
+        float titleX = layout.Header.Left + (showServiceMark ? UiMetrics.ServiceIconSize + UiMetrics.CardGap : 0);
+        bool hasWarning = showSupplementalLimits && LimitWarning.Hidden(Reading, preference, DateTimeOffset.UtcNow).Count > 0;
+        float nameWidth = Math.Max(0, layout.Header.Right - titleX - 171 -
+            (hasWarning ? UiMetrics.WarningDotSize + UiMetrics.InlineGap : 0));
+        string displayedName = FitName(g, Alias, title, nameFormat, nameWidth);
+        g.DrawString(displayedName, title, fg, titleX, AccountRowLayout.TextTop(layout.Header, title), nameFormat);
+        if (hasWarning)
+        {
+            using var warning = new SolidBrush(Palette.Warning);
+            float dotX = titleX + g.MeasureString(displayedName, title, int.MaxValue, nameFormat).Width + UiMetrics.InlineGap;
+            g.FillEllipse(warning, dotX, layout.Header.Top + (layout.Header.Height - UiMetrics.WarningDotSize) / 2,
+                UiMetrics.WarningDotSize, UiMetrics.WarningDotSize);
+        }
         var now = DateTimeOffset.UtcNow;
         if (Reading.Weekly is not { } w)
         {
-            g.DrawString(Reading.Error ?? "Refreshing…", small, muted, new RectangleF(14, 42, width - 28, 46));
+            g.DrawString(Reading.Error ?? "Refreshing…", small, muted, layout.Error);
             return;
         }
 
         var pace = PaceMath.Calculate(w, now);
-        using var accent = new SolidBrush(Palette.Status(pace));
-        g.DrawString($"{w.Used:0}% · {PaceMath.Compact(pace)}", small, accent, new RectangleF(width - 177, 13, 163, 22), rightFormat);
-        float x = 14, y = 44, bw = width - 28, bh = 8;
+        using var accent = new SolidBrush(Palette.Status(w, now));
+        g.DrawString($"{w.Used:0}% · {PaceMath.Compact(w, now)}", small, accent, new RectangleF(layout.Header.Right - 163, AccountRowLayout.TextTop(layout.Header, small), 163, layout.Header.Height), rightFormat);
+        float x = layout.Bar.Left, y = layout.Bar.Top, bw = layout.Bar.Width, bh = layout.Bar.Height;
         using var track = new SolidBrush(Palette.Track);
         g.FillRectangle(track, x, y, bw, bh);
         g.FillRectangle(accent, x, y, bw * (float)Math.Clamp(w.Used / 100, 0, 1), bh);
-        using var day = new Pen(Palette.DayDivider, 1);
-        for (int i = 1; i < 7; i++)
-            g.DrawLine(day, x + bw * i / 7, y, x + bw * i / 7, y + bh);
+        int segments = AccountRowLayout.SegmentCount(w.Period);
+        using var divider = new Pen(Palette.BarDivider, UiMetrics.BorderWidth);
+        for (int i = 1; i < segments; i++)
+            g.DrawLine(divider, x + bw * i / segments, y, x + bw * i / segments, y + bh);
         if (pace != null)
         {
             float tick = x + bw * (float)(pace.Expected / 100);
-            using var marker = new Pen(Palette.Text, 2);
-            g.DrawLine(marker, tick, y - 4, tick, y + bh + 4);
-            g.FillPolygon(fg, new PointF[] { new(tick - 3, y - 7), new(tick + 3, y - 7), new(tick, y - 3) });
+            using var marker = new SolidBrush(Palette.Text);
+            float markerX = Math.Clamp(tick - UiMetrics.PaceMarkerWidth / 2f, x, x + bw - UiMetrics.PaceMarkerWidth);
+            g.FillRectangle(marker, markerX, y - UiMetrics.PaceMarkerOverhang,
+                UiMetrics.PaceMarkerWidth, bh + 2 * UiMetrics.PaceMarkerOverhang);
         }
 
-        var resetText = now >= w.Reset ? "Reset passed · refresh needed" : $"Resets in {PaceMath.Duration(w.Reset - now)}";
+        var resetText = RelativeResetTime ? PaceMath.ResetCountdown(w.Reset, now) : PaceMath.ResetLabel(w.Reset, now);
+        float metaY = AccountRowLayout.TextTop(layout.Metadata, small);
+        string? status = null;
+        if (Reading.Error != null)
+            status = Reading.Error.Contains("rate limit", StringComparison.OrdinalIgnoreCase) || Reading.Error.StartsWith("Retry") ? "Stale · rate limited" : "Stale · hover for details";
+        else if (PaceMath.Classify(w, now) != PaceState.Exhausted && PaceMath.AheadLabel(pace) is { } aheadLabel)
+            status = aheadLabel;
+        float statusWidth = status == null ? 0 : g.MeasureString(status, small, int.MaxValue, rightFormat).Width;
+        float badgeSpace = resetBadge.Visible ? UiMetrics.ResetBadgeWidth + UiMetrics.InlineGap : 0;
+        float resetWidth = Math.Max(0, layout.Metadata.Width - statusWidth - badgeSpace - (status == null ? 0 : UiMetrics.CardGap));
+        g.DrawString(resetText, small, muted, new RectangleF(layout.Metadata.Left, metaY, resetWidth, layout.Metadata.Height), countdownFormat);
         if (resetBadge.Visible)
         {
-            // Keep badge and countdown on the existing line, clear of the right status.
-            float textWidth = Math.Min(118, g.MeasureString(resetText, small).Width);
-            g.DrawString(resetText, small, muted, new RectangleF(14, 66, 118, 20), countdownFormat);
-            resetBadge.SetBounds((int)((14 + textWidth + 4) * s), (int)(62 * s), (int)(42 * s), (int)(24 * s));
+            float textWidth = Math.Min(resetWidth, g.MeasureString(resetText, small).Width);
+            resetBadge.SetBounds((int)((layout.Metadata.Left + textWidth + UiMetrics.InlineGap) * s), (int)(layout.Metadata.Top * s), (int)(UiMetrics.ResetBadgeWidth * s), (int)(layout.Metadata.Height * s));
         }
-        else
-            g.DrawString(resetText, small, muted, 14, 66);
-        if (Reading.Error != null)
+        if (status != null)
+            g.DrawString(status, small, Reading.Error == null ? accent : muted,
+                new RectangleF(layout.Metadata.Right - statusWidth, metaY, statusWidth, layout.Metadata.Height), rightFormat);
+        if (showSupplementalLimits)
+            CompactLimitBars.Draw(g, Reading, layout, preference);
+    }
+
+    internal static string FitName(Graphics graphics, string name, Font font, StringFormat format, float width)
+    {
+        if (graphics.MeasureString(name, font, int.MaxValue, format).Width <= width)
+            return name;
+        if (graphics.MeasureString("…", font, int.MaxValue, format).Width > width)
+            return "";
+        var starts = System.Globalization.StringInfo.ParseCombiningCharacters(name);
+        int low = 0, high = starts.Length;
+        while (low < high)
         {
-            string status = Reading.Error.Contains("rate limit", StringComparison.OrdinalIgnoreCase) || Reading.Error.StartsWith("Retry") ? "Stale · rate limited" : "Stale · hover for details";
-            g.DrawString(status, small, muted, new RectangleF(180, 66, width - 194, 20), rightFormat);
+            int count = (low + high + 1) / 2;
+            int end = count == starts.Length ? name.Length : starts[count];
+            if (graphics.MeasureString(name[..end] + "…", font, int.MaxValue, format).Width <= width)
+                low = count;
+            else
+                high = count - 1;
         }
-        else if (PaceMath.AheadLabel(pace) is { } aheadLabel)
-            g.DrawString(aheadLabel, small, accent, new RectangleF(180, 66, width - 194, 20), rightFormat);
+        return name[..(low == starts.Length ? name.Length : starts[low])] + "…";
     }
 
     protected override void Dispose(bool disposing)

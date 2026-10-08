@@ -25,5 +25,24 @@ internal static class PaceChecks
         Check(PaceMath.HoverSummary(p) == "+7% · 12h" && PaceMath.HoverSummary(other) == "-18%" && PaceMath.HoverSummary(upperEdge) == "+2%", "Hover adds whole hours only above pace, without an ahead suffix");
         Check(PaceMath.Calculate(new(50, now, TimeSpan.FromDays(7)), now) == null, "Expired windows have no current pace");
         Check(PaceMath.Calculate(new(50, now.AddDays(8), TimeSpan.FromDays(7)), now) == null, "Future-start windows have no current pace");
+        var exhausted = new Window(100, now.AddMinutes(4), TimeSpan.FromHours(5));
+        Check(PaceMath.Classify(PaceMath.Calculate(exhausted, now)) == PaceState.OnPace &&
+            PaceMath.Classify(exhausted, now) == PaceState.Exhausted &&
+            PaceMath.Compact(exhausted, now) == "limit reached" && Palette.Status(exhausted, now) == Palette.Warning,
+            "Exhausted limits override on-pace tolerance with the warning label and color");
+        Check(PaceMath.Classify(exhausted, exhausted.Reset!.Value) == PaceState.Unavailable &&
+            PaceMath.Classify(exhausted with { Used = 99 }, now) == PaceState.OnPace,
+            "Exhaustion requires 100 percent usage in an active window");
+        var clockNow = new DateTimeOffset(2026, 10, 8, 12, 0, 0, TimeSpan.Zero);
+        var sameDayReset = clockNow.AddHours(5.5);
+        Check(!PaceMath.ResetLabel(sameDayReset, clockNow, TimeZoneInfo.Utc).Contains("·") &&
+            PaceMath.ResetLabel(sameDayReset.AddDays(1), clockNow, TimeZoneInfo.Utc).Contains("·"),
+            "Reset labels omit the weekday only for the same local calendar day");
+        Check(PaceMath.ResetLabel(clockNow.AddMinutes(30), clockNow, TimeZoneInfo.CreateCustomTimeZone("test", TimeSpan.FromHours(-12.25), "test", "test")).Contains("·"),
+            "Reset labels use local calendar boundaries even when UTC dates match");
+        Check(PaceMath.ResetCountdown(sameDayReset, clockNow) == "Resets in 5h 30m" &&
+            PaceMath.ResetLabel(null, clockNow) == "Reset time unavailable" &&
+            PaceMath.ResetLabel(clockNow, clockNow) == "Reset passed · refresh needed",
+            "Countdown tooltips and unknown or passed reset states remain explicit");
     }
 }

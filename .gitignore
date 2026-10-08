@@ -19,3 +19,6 @@ auth.json
 .credentials.json
 settings.json
 retry-times.json
+
+# Local review artifacts and migration backups.
+/.local/

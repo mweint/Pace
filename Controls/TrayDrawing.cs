@@ -29,7 +29,8 @@ public static class TrayDrawing
             for (int i = 0; i < count; i++)
             {
                 var reading = i < readings.Count ? readings[i] : null;
-                var state = reading?.Weekly is { } weekly && reading.Error == null ? PaceMath.Classify(weekly, now) : PaceState.Unavailable;
+                // A stale reading keeps its colour, matching the panel; grey means no reading at all.
+                var state = reading?.Weekly is { } weekly ? PaceMath.Classify(weekly, now) : PaceState.Unavailable;
                 context.FillRectangle(Palette.Brush(state == PaceState.OnPace ? Palette.TrayOnPace : Palette.Status(state)), new Rect(left, first + i * spacing, size - 2 * left, thickness));
             }
         }

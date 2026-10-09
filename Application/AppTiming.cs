@@ -4,7 +4,7 @@ internal static class AppTiming
 {
     public const int PaceRefreshMilliseconds = 60_000;
     public const int UpdateCheckMilliseconds = 6 * 60 * 60 * 1000;
-    public const int UsageRefreshTicks = 1;
+    public const int UsageRefreshTicks = 2;
     // A successful reading younger than this is kept instead of asking the service again.
     // Keep it below the automatic refresh interval so timed refreshes are never skipped.
     public const int UsageFreshMilliseconds = 45_000;

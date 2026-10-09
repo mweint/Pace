@@ -18,6 +18,8 @@ public static class PaceMath
         Classify(window, now) == PaceState.Exhausted ? "Limit reached" : Summary(Calculate(window, now));
     public static string HoverSummary(UsageWindow window, DateTimeOffset now) =>
         Classify(window, now) == PaceState.Exhausted ? "Limit reached" : HoverSummary(Calculate(window, now));
+    public static string HoverSummary(Reading reading, DateTimeOffset now) =>
+        reading.Weekly is { } weekly && reading.Error == null ? HoverSummary(weekly, now) : "Unavailable";
     public static PaceGap? Calculate(UsageWindow w, DateTimeOffset now)
     {
         if (!double.IsFinite(w.Used) || w.Period <= TimeSpan.Zero || w.Reset is not { } reset || now >= reset)

@@ -29,9 +29,9 @@ public abstract class PageDialog : WidgetWindow
         };
         Closed += (_, _) => fade.Dispose();
     }
-    public void OpenPage(PixelRect anchor)
+    public void OpenPage(PopupAnchor anchor)
     {
-        AnchorArea = anchor; Place();
+        Anchor = anchor; Place();
         fadeAnchor = Position;
         FrameOpacity = Motion.Enabled ? 0 : 1;
         MoveToFrame();
@@ -55,5 +55,5 @@ public abstract class PageDialog : WidgetWindow
             if (!all) MoveToFrame();
         }, () => { allowClose = true; Close(); completed(); }, Motion.EaseOut);
     }
-    void MoveToFrame() => Position = new(fadeAnchor.X, fadeAnchor.Y + Motion.SlideOffset(FrameOpacity, RenderScaling));
+    void MoveToFrame() => Position = Anchor.Slide(fadeAnchor, Motion.SlideOffset(FrameOpacity, RenderScaling));
 }

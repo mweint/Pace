@@ -24,13 +24,9 @@ public sealed class TrayHover : WidgetWindow
     public void Open(PixelRect anchor) { iconAnchor = anchor; PlaceAt(anchor); Show(); PlaceAt(anchor); }
     void PlaceAt(PixelRect anchor)
     {
-        var screen = Screens.ScreenFromPoint(anchor.Position) ?? Screens.Primary;
+        var screen = Screens.ScreenFromPoint(anchor.Center) ?? Screens.Primary;
         if (screen == null) return;
-        double scale = screen.Scaling;
-        var area = screen.WorkingArea;
-        int width = (int)Math.Ceiling(Width * scale), height = (int)Math.Ceiling(Height * scale), gap = (int)Math.Ceiling(UiMetrics.ScreenInset * scale);
-        Position = new(Math.Clamp(anchor.X + anchor.Width / 2 - width / 2, area.X, Math.Max(area.X, area.Right - width)),
-            Math.Clamp(Math.Min(anchor.Y, area.Bottom) - height - gap, area.Y, Math.Max(area.Y, area.Bottom - height - gap)));
+        Position = PopupAnchor.For(screen, anchor).Place(new Size(Width, Height), screen.Scaling);
     }
     sealed class HoverContent : PaintedPanel
     {
@@ -45,7 +41,7 @@ public sealed class TrayHover : WidgetWindow
                 double y = UiMetrics.HoverInset + i * UiMetrics.HoverRowHeight;
                 ServiceMark.Draw(context, reading.Account.Service, new Point(UiMetrics.HoverInset, y), TopLevel.GetTopLevel(this)?.RenderScaling ?? 1);
                 var now = DateTimeOffset.UtcNow;
-                var value = Palette.Format(reading.Weekly is { } limit && reading.Error == null ? PaceMath.HoverSummary(limit, now) : "Unavailable",
+                var value = Palette.Format(PaceMath.HoverSummary(reading, now),
                     reading.Weekly is { } weekly && reading.Error == null ? Palette.Status(weekly, now) : Palette.Muted);
                 double valueWidth = Math.Ceiling(value.Width) + UiMetrics.InlineGap;
                 double valueLeft = Bounds.Width - UiMetrics.HoverInset - valueWidth, nameLeft = UiMetrics.HoverInset + UiMetrics.ServiceIconSize + UiMetrics.CardGap;

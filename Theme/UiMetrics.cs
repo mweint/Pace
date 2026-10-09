@@ -46,10 +46,3 @@ public static class UiMetrics
     public const int TooltipMaxWidth = 300;
     public const int DetailDelayMilliseconds = 1000, DetailDurationMilliseconds = 10000;
 }
-
-public static class PopupPlacement
-{
-    public static PixelPoint BottomRight(PixelRect area, Size size, double scale = 1) => new(
-        Math.Max(area.X, area.Right - (int)Math.Ceiling((size.Width + UiMetrics.ScreenInset) * scale)),
-        Math.Max(area.Y, area.Bottom - (int)Math.Ceiling((size.Height + UiMetrics.ScreenInset) * scale)));
-}

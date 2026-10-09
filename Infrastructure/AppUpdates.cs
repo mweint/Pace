@@ -20,6 +20,12 @@ public sealed class AppUpdates
     public bool Busy => busy;
     public bool Notify => Available is { } release && settings.DismissedUpdateVersion != release.Version;
     public bool Ready => Available is { } release && UpdateInstaller.ReadyVersion == release.Version;
+    // Windows installs updates itself; elsewhere Pace links to the release, as
+    // self-contained Linux apps outside a package manager usually do.
+    public static bool SelfInstalls => OperatingSystem.IsWindows();
+    static string? PackageName => System.Runtime.InteropServices.RuntimeInformation.OSArchitecture != System.Runtime.InteropServices.Architecture.X64 ? null
+        : OperatingSystem.IsWindows() ? "Pace-win-x64.zip" : OperatingSystem.IsLinux() ? "Pace-linux-x64.tar.gz" : null;
+    public Uri? ReleasePage => Available is { } release ? new($"https://github.com/mweint/Pace/releases/tag/{Uri.EscapeDataString(release.Version)}") : null;
     public static string CurrentVersion => typeof(AppUpdates).Assembly.GetName().Version?.ToString(3) ?? "0.1.0";
     public AppUpdates(Settings settings) : this(settings, network, settings.Save) { }
     internal AppUpdates(Settings settings, HttpClient client, Action persist)
@@ -67,7 +73,7 @@ public sealed class AppUpdates
             Available = null;
             foreach (var asset in root.GetProperty("assets").EnumerateArray())
             {
-                if (!OperatingSystem.IsWindows() || asset.GetProperty("name").GetString() != "Pace-win-x64.zip") continue;
+                if (PackageName == null || asset.GetProperty("name").GetString() != PackageName) continue;
                 var url = new Uri(asset.GetProperty("browser_download_url").GetString()!);
                 string digest = asset.TryGetProperty("digest", out var value) ? value.GetString() ?? "" : "";
                 if (url.Scheme != "https" || url.Host != "github.com" || !url.AbsolutePath.StartsWith("/mweint/Pace/releases/download/", StringComparison.Ordinal) || !digest.StartsWith("sha256:", StringComparison.Ordinal))
@@ -79,7 +85,7 @@ public sealed class AppUpdates
         }
         catch { Status = "Couldn't check for updates. Try again."; }
         finally { busy = false; Changed?.Invoke(); }
-        if (settings.AutomaticUpdates && Available != null) await Download();
+        if (settings.AutomaticUpdates && SelfInstalls && Available != null) await Download();
     }
 
     public void Dismiss()
@@ -100,7 +106,7 @@ public sealed class AppUpdates
 
     public async Task Download()
     {
-        if (busy || Available is not { } release || Ready) return;
+        if (busy || !SelfInstalls || Available is not { } release || Ready) return;
         busy = true;
         Status = "Downloading update…";
         Changed?.Invoke();

@@ -48,13 +48,12 @@ public class WidgetWindow : Window
         get => (Content as Visual)?.Opacity ?? 1;
         set { if (Content is Visual frame) frame.Opacity = value; }
     }
-    public PixelRect AnchorArea { get; set; }
+    public PopupAnchor Anchor { get; set; }
     public void Place()
     {
-        var anchor = AnchorArea.Width > 0 ? new PixelPoint(AnchorArea.X + AnchorArea.Width / 2, AnchorArea.Y + AnchorArea.Height / 2) : Position;
-        var screen = Screens.ScreenFromPoint(anchor) ?? Screens.Primary;
-        if (AnchorArea.Width == 0 && screen != null) AnchorArea = screen.WorkingArea;
-        if (AnchorArea.Width > 0) Position = PopupPlacement.BottomRight(AnchorArea, new Size(Width, Height), screen?.Scaling ?? RenderScaling);
+        var screen = Screens.ScreenFromPoint(Anchor.IsEmpty ? Position : Anchor.Area.Center) ?? Screens.Primary;
+        if (Anchor.IsEmpty && screen != null) Anchor = PopupAnchor.For(screen);
+        if (!Anchor.IsEmpty) Position = Anchor.Place(new Size(Width, Height), screen?.Scaling ?? RenderScaling);
     }
-    protected double AvailableHeight => (AnchorArea.Height > 0 ? AnchorArea.Height : Screens.Primary?.WorkingArea.Height ?? 900) / RenderScaling - UiMetrics.ScreenHeightReserve;
+    protected double AvailableHeight => (!Anchor.IsEmpty ? Anchor.Area.Height : Screens.Primary?.WorkingArea.Height ?? 900) / RenderScaling - UiMetrics.ScreenHeightReserve;
 }

@@ -20,7 +20,13 @@ internal sealed class FocusCue
         };
         control.LostFocus += (_, _) => control.InvalidateVisual();
         control.AddHandler(InputElement.PointerPressedEvent, (_, _) => { Visible = false; control.InvalidateVisual(); }, RoutingStrategies.Tunnel);
-        control.AddHandler(InputElement.KeyDownEvent, (_, _) => { Visible = true; control.InvalidateVisual(); }, RoutingStrategies.Tunnel);
+        // Only navigation keys reveal the cue: Escape, Alt+Tab, the Windows key and other
+        // keys that close or leave the window must not outline a button as it fades out.
+        control.AddHandler(InputElement.KeyDownEvent, (_, e) =>
+        {
+            if (e.Key is not (Key.Tab or Key.Left or Key.Right or Key.Up or Key.Down)) return;
+            Visible = true; control.InvalidateVisual();
+        }, RoutingStrategies.Tunnel);
     }
     public static void HideForPointer(Control root)
     {

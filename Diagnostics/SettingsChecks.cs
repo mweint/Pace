@@ -4,6 +4,9 @@ internal static class SettingsChecks
 {
     public static void Run(Action<bool, string> Check)
     {
+        Check(StartupRegistration.ExecLine("/opt/Pace/Pace") == "\"/opt/Pace/Pace\"" &&
+            StartupRegistration.ExecLine(@"/opt/a b/$x`\""100%/Pace") == @"""/opt/a b/\\$x\\`\\\\\\""100%%/Pace""",
+            "Autostart entries quote the executable path for the Desktop Entry Exec key");
         string root = Path.Combine(Path.GetTempPath(), "pace-migration-" + Guid.NewGuid().ToString("N"));
         string legacy = Path.Combine(root, "legacy"), current = Path.Combine(root, "current");
         string oldCredential = Path.Combine(legacy, "accounts", "sample", "auth.json");

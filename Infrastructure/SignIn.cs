@@ -13,7 +13,7 @@ public static class SignIn
     {
         string? executable = ClientDiscovery.Find(service);
         if (executable == null)
-            throw new InvalidOperationException(service == Services.Claude ? "Install Claude Code, then try again." : "Install Codex desktop or the Codex CLI, then try again.");
+            throw new InvalidOperationException(service == Services.Claude ? "Install Claude Code, then try again." : (OperatingSystem.IsWindows() ? "Install Codex desktop or the Codex CLI, then try again." : "Install the Codex CLI, then try again."));
         string folder = existingFile == null ? Path.Combine(Settings.DirectoryPath, "accounts", service.ToLowerInvariant(), Guid.NewGuid().ToString("N")) : Path.GetDirectoryName(existingFile)!;
         Directory.CreateDirectory(folder);
         string file = existingFile ?? Path.Combine(folder, service == Services.Claude ? ".credentials.json" : "auth.json");

@@ -1,6 +1,6 @@
 # Pace
 
-A Windows tray app that shows Claude and Codex subscription usage relative to each
+A Windows and Linux tray app that shows Claude and Codex subscription usage relative to each
 account's weekly reset.
 
 ## Download
@@ -12,6 +12,20 @@ account's weekly reset.
 3. Click the tray icon to view usage or manage accounts.
 
 Windows 10/11, x64. The .NET runtime is included. Keep the extracted files together.
+### Linux (preview)
+
+[Download for Linux](https://github.com/mweint/Pace/releases/latest/download/Pace-linux-x64.tar.gz)
+
+```sh
+tar xzf Pace-linux-x64.tar.gz
+./Pace/install.sh            # installs to ~/.local; ./Pace/install.sh --uninstall removes it
+```
+
+x64 desktops with a StatusNotifier tray: KDE Plasma, or GNOME with the AppIndicator
+extension (included in Ubuntu). Requires the X11 libraries most desktops include
+(`libice6`, `libsm6`, `libfontconfig1`) and ICU. The panel opens on the panel edge
+where your desktop reserves space; hover summaries appear as the tray tooltip.
+
 Existing CLI sign-ins are detected automatically. Adding accounts requires the
 corresponding Claude or Codex CLI; sign-in opens in your browser.
 
@@ -75,15 +89,16 @@ limit resets. It cannot be dismissed. Details and the tray icon have no dots.
 
 ## Local data
 
-Settings and managed sign-ins are stored in `%APPDATA%/Pace`. Data from the previous
-app name migrates automatically. Windows can launch Pace at sign-in through a
-current-user startup entry pointing to the installed executable.
+Settings and managed sign-ins are stored in `%APPDATA%/Pace` on Windows and
+`~/.config/Pace` on Linux. Data from the previous app name migrates automatically.
+Launch at sign-in uses a current-user startup entry on Windows and an XDG autostart
+entry (`~/.config/autostart/pace.desktop`) on Linux.
 
 ## Settings
 
 The overview gear opens Settings, with General and Accounts tabs. General lets
-you choose reset clock times or time remaining, and enable or disable Windows
-sign-in startup. Accounts retains naming, ordering, sign-in and visibility controls.
+you choose reset clock times or time remaining, and enable or disable launching at
+sign-in. Accounts retains naming, ordering, sign-in and visibility controls.
 Tabs share a stable window size and footer, with room for three accounts;
 longer lists use a slim themed scrollbar when needed. The
 tray count and add-account actions live inside Accounts.
@@ -96,6 +111,8 @@ When enabled, Pace downloads a verified Windows package and installs it on the
 next launch. Update installs immediately and restarts Pace. Packages must match
 the release checksum and version. The installer backs up replaced files and
 restores them if copying fails; settings and sign-ins remain outside the app.
+On Linux, Pace notifies about a new release and Download opens its release page;
+it does not replace its own files.
 
 Existing CLI sign-ins respect `CODEX_HOME` and `CLAUDE_CONFIG_DIR`. Tokens are read
 from local credential files and sent to the corresponding service. Official CLIs
@@ -106,8 +123,10 @@ Subscription endpoints are undocumented and may change.
 <details>
 <summary>Development</summary>
 
-The desktop UI uses Avalonia. Windows is verified; Linux and macOS packaging and
-platform integration still need validation. Requires the .NET 10 SDK. See
+The desktop UI uses Avalonia, with one shared codebase. Platform differences (tray,
+startup, updates, CLI discovery) live in `Infrastructure`. Windows is verified; Linux
+passes the offline checks but needs validation on real desktops; macOS is not
+packaged. Requires the .NET 10 SDK. See
 [STYLEGUIDE.txt](STYLEGUIDE.txt) and [AGENTS.md](AGENTS.md) for theme ownership
 and contribution rules.
 
@@ -116,9 +135,11 @@ dotnet build -c Release
 dotnet publish -c Release -r win-x64 --self-contained true -o dist/Pace
 .\bin\Release\net10.0\Pace.exe --self-test self-test.json
 .\bin\Release\net10.0\Pace.exe --render-preview preview.png
+powershell -File scripts/Publish-Linux.ps1   # dist/Pace-linux-x64.tar.gz
 ```
 
-Offline checks require an interactive Windows desktop with Explorer. Preview mode
+Offline checks require an interactive desktop: Windows with Explorer, or a Linux
+X11/XWayland session. Preview mode
 uses sample accounts. `--live-check live-check.json` makes authenticated requests;
 its report stays local.
 

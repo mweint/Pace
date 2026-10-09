@@ -28,6 +28,7 @@ public sealed class TrayApp : IDisposable
         updates = new(settings);
         updates.Changed += () => { if (!exiting) panel.UpdateNotification(updates.Notify); };
         navigation.Changed += Render;
+        panel.LocateTray = () => tray.Bounds ?? (DesktopIntegration.Pointer is { } pointer ? new PixelRect(pointer, new PixelSize(1, 1)) : null);
         tray.Update([]);
         tray.Clicked += () =>
         {
@@ -136,7 +137,7 @@ public sealed class TrayApp : IDisposable
         if (exiting) return;
         var ordered = Ordered();
         var selected = ordered.Where(r => settings.For(r.Account) is { Show: true, Tray: true }).Take(AccountRules.MaxTrayAccounts).ToList();
-        tray.Update(selected); hover.UpdateEntries(selected, settings);
+        tray.Update(selected, settings); hover.UpdateEntries(selected, settings);
         panel.UpdateRows(ordered, settings, busy);
         if (navigation.ActivePage is AccountsDialog accounts) accounts.UpdateConnections(ordered);
         if (navigation.ActivePage is AccountDetailsDialog details && ordered.FirstOrDefault(r => r.Account.Key == details.AccountKey) is { } reading)

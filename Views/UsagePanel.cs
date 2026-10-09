@@ -10,6 +10,8 @@ public sealed class UsagePanel : WidgetWindow
     PixelPoint entranceTarget;
     bool closing;
     public bool EditingAccounts { get; set; }
+    // The tray icon's screen bounds, or the pointer when the desktop does not report them.
+    public Func<PixelRect?>? LocateTray { get; set; }
     public long LastAutoHide { get; private set; }
     public event Action? RefreshRequested, SettingsRequested, ManageAccountsRequested;
     public event Action<Account>? AccountRequested;
@@ -83,7 +85,7 @@ public sealed class UsagePanel : WidgetWindow
         Height = Math.Min(rows.DesiredSize.Height + UiMetrics.ToolbarHeight + 2 * UiMetrics.WindowBorderWidth, AvailableHeight);
         if (IsVisible)
         {
-            entranceTarget = PopupPlacement.BottomRight(AnchorArea, new Size(Width, Height), RenderScaling);
+            entranceTarget = Anchor.Place(new Size(Width, Height), RenderScaling);
             if (!entrance.IsRunning) Position = entranceTarget;
         }
     }
@@ -96,9 +98,9 @@ public sealed class UsagePanel : WidgetWindow
     {
         if (newSession && !IsVisible)
         {
-            var pointer = DesktopIntegration.Pointer;
-            var screen = pointer is { } p ? Screens.ScreenFromPoint(p) : Screens.Primary;
-            if (screen != null) AnchorArea = screen.WorkingArea;
+            var icon = LocateTray?.Invoke();
+            var screen = (icon is { } i ? Screens.ScreenFromPoint(i.Center) : null) ?? Screens.Primary;
+            if (screen != null) Anchor = PopupAnchor.For(screen, icon);
         }
         closing = false;
         entrance.Dispose();
@@ -106,7 +108,7 @@ public sealed class UsagePanel : WidgetWindow
         entranceTarget = Position;
         bool animate = !IsVisible && Motion.Enabled;
         FrameOpacity = animate ? 0 : 1;
-        Position = new(entranceTarget.X, entranceTarget.Y + (animate && newSession ? Motion.SlideOffset(FrameOpacity, RenderScaling) : 0));
+        Position = Anchor.Slide(entranceTarget, animate && newSession ? Motion.SlideOffset(FrameOpacity, RenderScaling) : 0);
         Show(); Activate();
         // Returning from a page restores native focus, not keyboard navigation.
         // Clear retained cues before showing the reused footer again.
@@ -115,7 +117,7 @@ public sealed class UsagePanel : WidgetWindow
         if (animate) entrance.Start(newSession ? Motion.FadeMilliseconds : Motion.NavigationFadeMilliseconds, t =>
         {
             FrameOpacity = t;
-            Position = new PixelPoint(entranceTarget.X, entranceTarget.Y + (newSession ? Motion.SlideOffset(FrameOpacity, RenderScaling) : 0));
+            Position = Anchor.Slide(entranceTarget, newSession ? Motion.SlideOffset(FrameOpacity, RenderScaling) : 0);
         }, ease: newSession ? Motion.EaseOut : Motion.Lead);
     }
     public void Dismiss(bool navigation = false)
@@ -128,7 +130,7 @@ public sealed class UsagePanel : WidgetWindow
         entrance.Start(navigation ? Motion.NavigationFadeMilliseconds : Motion.FadeMilliseconds, t =>
         {
             FrameOpacity = from * (1 - t);
-            Position = new(entranceTarget.X, entranceTarget.Y + (!navigation ? Motion.SlideOffset(FrameOpacity, RenderScaling) : 0));
+            Position = Anchor.Slide(entranceTarget, !navigation ? Motion.SlideOffset(FrameOpacity, RenderScaling) : 0);
         }, () =>
         {
             // Stay transparent while hidden so a reshow never presents a stale opaque frame.

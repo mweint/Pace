@@ -29,9 +29,7 @@ internal sealed class GeneralSettingsView : SectionList, IDisposable
         var startup = new SettingsSection();
         startup.Label("Startup", true);
         var launch = startup.Toggle("Launch at sign-in", StartupRegistration.Enabled);
-
-        launch.IsEnabled = OperatingSystem.IsWindows();
-
+        launch.IsEnabled = StartupRegistration.Supported;
         bool restoring = false;
         launch.IsCheckedChanged += (_, _) =>
         {
@@ -48,13 +46,18 @@ internal sealed class GeneralSettingsView : SectionList, IDisposable
         var update = new SettingsSection();
         update.Label("Updates", true); update.Label("Pace " + AppUpdates.CurrentVersion);
         var automatic = update.Toggle("Automatic updates", settings.AutomaticUpdates);
+        automatic.IsVisible = AppUpdates.SelfInstalls;
 
         automatic.IsCheckedChanged += async (_, _) => { settings.AutomaticUpdates = automatic.Checked; Save(); if (automatic.Checked) await updates.Check(); };
         update.Children.Add(automatic);
         updateStatus = update.Label(updates.Status);
-        check = Palette.Button("Check for updates"); install = Palette.Button("Update"); dismiss = Palette.Button("Dismiss");
+        check = Palette.Button("Check for updates"); install = Palette.Button(AppUpdates.SelfInstalls ? "Update" : "Download"); dismiss = Palette.Button("Dismiss");
         check.Click += async (_, _) => await updates.Check();
-        install.Click += async (_, _) => { await updates.Download(); if (updates.Ready) installUpdate(); };
+        install.Click += async (_, _) =>
+        {
+            if (!AppUpdates.SelfInstalls) { if (updates.ReleasePage is { } page && TopLevel.GetTopLevel(install) is { } top) await top.Launcher.LaunchUriAsync(page); return; }
+            await updates.Download(); if (updates.Ready) installUpdate();
+        };
         dismiss.Click += (_, _) => updates.Dismiss();
         update.Children.Add(new ButtonGroup(check, install, dismiss));
         Children.Add(update);

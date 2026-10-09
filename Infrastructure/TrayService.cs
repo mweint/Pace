@@ -19,7 +19,7 @@ internal sealed class TrayService : IDisposable
         }
         else
         {
-            portable = new TrayIcon { IsVisible = true, ToolTipText = "" };
+            portable = new TrayIcon { IsVisible = true, ToolTipText = "Pace" };
             portable.Clicked += (_, _) => Clicked?.Invoke();
             var menu = new NativeMenu();
             foreach (var (label, command) in new[] { ("Show Pace", 1), ("Refresh", 2), ("Settings…", 3), ("Quit", 4) })
@@ -31,11 +31,17 @@ internal sealed class TrayService : IDisposable
             portable.Menu = menu;
         }
     }
-    public void Update(List<Reading> readings)
+    public void Update(List<Reading> readings, Settings? settings = null)
     {
         var png = TrayDrawing.Png(readings, DesktopIntegration.TrayIconSize);
         if (OperatingSystem.IsWindows()) windows?.Update(png);
-        else if (portable != null) portable.Icon = new WindowIcon(new MemoryStream(png));
+        else if (portable != null)
+        {
+            portable.Icon = new WindowIcon(new MemoryStream(png));
+            // Tray hosts there report no hover, so the hover summary becomes the tooltip.
+            var now = DateTimeOffset.UtcNow;
+            portable.ToolTipText = string.Join('\n', readings.Select(r => $"{settings?.DisplayName(r.Account) ?? r.Account.Label}: {PaceMath.HoverSummary(r, now)}").Prepend("Pace"));
+        }
     }
     public void Dispose()
     {

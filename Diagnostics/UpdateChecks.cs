@@ -16,7 +16,8 @@ internal static class UpdateChecks
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(JsonSerializer.Serialize(new
             {
                 tag_name = Version, draft = false, prerelease = false,
-                assets = new[] { new { name = "Pace-win-x64.zip", browser_download_url = $"https://{Host}/mweint/Pace/releases/download/{Version}/Pace-win-x64.zip", digest = "sha256:" + new string('0', 64) } }
+                assets = new[] { "Pace-win-x64.zip", "Pace-linux-x64.tar.gz" }.Select(name =>
+                    new { name, browser_download_url = $"https://{Host}/mweint/Pace/releases/download/{Version}/{name}", digest = "sha256:" + new string('0', 64) })
             })) });
         }
     }
@@ -38,7 +39,10 @@ internal static class UpdateChecks
             handler.Version = "v99.2.0"; await updates.Check();
             check(updates.Notify, "A newer release notifies after a dismissed version");
         }
-        else check(updates.Available == null, "Non-Windows builds do not install Windows packages");
+        else if (OperatingSystem.IsLinux())
+            check(updates.Notify && updates.Available?.Download.AbsolutePath.EndsWith("/Pace-linux-x64.tar.gz") == true && !updates.Ready &&
+                updates.ReleasePage?.AbsoluteUri == "https://github.com/mweint/Pace/releases/tag/v99.1.0", "Linux notifies about its own package and links to the release");
+        else check(updates.Available == null, "Platforms without a package do not offer updates");
         handler.Fail = true; await updates.Check();
         check(!updates.Busy && updates.Status.Contains("Try again"), "Update failures leave a retryable state");
         handler.Fail = false; handler.Host = "example.com"; await updates.Check();

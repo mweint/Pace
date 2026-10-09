@@ -4,7 +4,7 @@ $repo = Split-Path $PSScriptRoot -Parent
 $files = @(git -C $repo ls-files --cached)
 if ($LASTEXITCODE -ne 0 -or !$files.Count) { throw 'Stage intended files before auditing.' }
 $issues = [System.Collections.Generic.List[string]]::new()
-$allowed = @('.cs', '.csproj', '.md', '.txt', '.svg', '.png', '.ico', '.ttf', '.ps1')
+$allowed = @('.cs', '.csproj', '.md', '.txt', '.svg', '.png', '.ico', '.ttf', '.ps1', '.sh')
 $metadata = @('.gitignore', '.gitattributes', '.editorconfig')
 $patterns = @(
     '(?i)\bsk-(?:proj-|ant-)?[A-Za-z0-9_-]{20,}',

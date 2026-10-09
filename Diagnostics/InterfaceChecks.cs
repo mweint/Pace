@@ -6,6 +6,7 @@ internal static class InterfaceChecks
 {
     public static async Task Run(Action<bool, string> check)
     {
+        Placement(check);
         bool animations = Motion.Enabled;
         var open = new List<Window>();
         try
@@ -114,7 +115,7 @@ internal static class InterfaceChecks
         var sections = descendants.OfType<SettingsSection>().ToList();
         check(sections.Count == 3 && sections.All(s => s.Children.All(c => c.Bounds.Bottom <= s.Bounds.Height - UiMetrics.ContentInset + .5)),
             "General sections contain their measured rows within the shared inset");
-        var buttons = descendants.OfType<FilledButton>().Where(b => b.Text is "When it resets" or "Time remaining" or "Check for updates" or "Update" or "Dismiss").ToList();
+        var buttons = descendants.OfType<FilledButton>().Where(b => b.Text is "When it resets" or "Time remaining" or "Check for updates" or "Update" or "Download" or "Dismiss").ToList();
         check(buttons.Count == 5 && buttons.All(b => b.MinWidth == UiMetrics.TextButtonWidth(b.Text) && b.MinWidth > Palette.TextWidth(b.Text)),
             "Filled buttons size to their measured text plus shared padding");
         var icon = descendants.OfType<IconButton>().First(b => b.Kind == "back");
@@ -122,6 +123,11 @@ internal static class InterfaceChecks
         check(!icon.ShowsFocusOutline && ToolTip.GetTip(icon) == null, "Mouse-focused icon has no outline or added tooltip");
         buttons[0].Focus(NavigationMethod.Pointer);
         check(!buttons[0].ShowsFocusOutline, "Mouse-selected text button keeps no focus outline");
+        foreach (var key in new[] { Key.Escape, Key.LWin, Key.LeftAlt })
+            icon.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = key });
+        icon.Focus(NavigationMethod.Unspecified);
+        check(!icon.ShowsFocusOutline, "Closing and window-switching keys do not outline the focused button");
+        buttons[0].Focus(NavigationMethod.Pointer);
         icon.Focus(NavigationMethod.Tab);
         check(icon.ShowsFocusOutline, "Keyboard-focused icon uses theme focus outline");
         FocusCue.HideForPointer((Control)accounts.Content!);
@@ -213,6 +219,23 @@ internal static class InterfaceChecks
         released.RaiseEvent(new PointerReleasedEventArgs(released, pointer, window, position, 1,
             new PointerPointProperties(RawInputModifiers.None, PointerUpdateKind.LeftButtonReleased), KeyModifiers.None, MouseButton.Left));
     }
+    static void Placement(Action<bool, string> check)
+    {
+        var screen = new PixelRect(0, 0, 1920, 1080);
+        var size = new Size(388, 300);
+        var bottom = new PopupAnchor(new PixelRect(0, 0, 1920, 1032), screen);
+        check(bottom.Edge == ScreenEdge.Bottom && bottom.Place(size) == new PixelPoint(1920 - 388 - 8, 1032 - 300 - 8), "Without an icon position, popups open in the corner of the taskbar edge");
+        var top = new PopupAnchor(new PixelRect(0, 32, 1920, 1048), screen);
+        check(top.Edge == ScreenEdge.Top && top.Place(size) == new PixelPoint(1920 - 388 - 8, 40) && top.Slide(new(0, 40), 18) == new PixelPoint(0, 22),
+            "A top panel places popups below it, sliding in from above");
+        var icon = new PopupAnchor(new PixelRect(0, 0, 1920, 1032), screen, new PixelRect(900, 1040, 24, 24));
+        check(icon.Edge == ScreenEdge.Bottom && icon.Place(size) == new PixelPoint(912 - 194, 1032 - 300 - 8), "A known icon position centers the popup on the icon");
+        var left = new PopupAnchor(new PixelRect(48, 0, 1872, 1080), screen, new PixelRect(12, 600, 24, 24));
+        check(left.Edge == ScreenEdge.Left && left.Place(size) == new PixelPoint(56, 612 - 150) && left.Slide(new(56, 0), 18) == new PixelPoint(38, 0),
+            "A side taskbar places popups beside the icon");
+        var corner = new PopupAnchor(new PixelRect(0, 0, 1920, 1032), screen, new PixelRect(1900, 1040, 24, 24));
+        check(corner.Place(size).X == 1920 - 388 - 8, "Popups stay inside the work area near the screen corner");
+    }
     static async Task Navigation(Action<bool, string> check, List<Reading> demo)
     {
         var panel = new UsagePanel { PreviewMode = true };
@@ -239,15 +262,16 @@ internal static class InterfaceChecks
         check(settingsIcon.ShowsFocusOutline, "Overview footer retains focus cues for deliberate keyboard navigation");
         var page = new AccountsDialog(demo, new Settings(), () => { }, persist: () => { });
         navigation.Show(page);
-        check(page.Position.Y == PopupPlacement.BottomRight(page.AnchorArea, new Size(page.Width, page.Height), page.RenderScaling).Y + Motion.SlideOffset(0, page.RenderScaling), "Page entry starts at the full slide offset before its first frame");
+        check(page.Position == page.Anchor.Slide(page.Anchor.Place(new Size(page.Width, page.Height), page.RenderScaling), Motion.SlideOffset(0, page.RenderScaling)), "Page entry starts at the full slide offset before its first frame");
         await Task.Delay(60);
         check(page.IsVisible && page.FrameOpacity > .4 && page.FrameOpacity < 1 && panel.IsVisible, "Separate pages enter over the overview");
         check(panel.FrameOpacity == 1, "The overview stays opaque under the entering page so the desktop never shows through");
-        var anchor = panel.AnchorArea;
+        var anchor = panel.Anchor;
         await Task.Delay((int)Motion.NavigationFadeMilliseconds + 50);
-        check(!panel.IsVisible && page.IsVisible && page.AnchorArea == anchor, "Navigation leaves one visible page on the same monitor");
+        check(!panel.IsVisible && page.IsVisible && page.Anchor == anchor, "Navigation leaves one visible page on the same monitor");
         page.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape }); await Task.Delay(60);
-        check(page.IsActive, "Back keeps the outgoing page in front while the overview fades in behind it");
+        // X11 activation is an asynchronous window-manager request, so focus is only asserted on Windows.
+        check(page.IsActive || !OperatingSystem.IsWindows(), "Back keeps the outgoing page in front while the overview fades in behind it");
         settingsIcon.Focus(NavigationMethod.Unspecified);
         check(!settingsIcon.ShowsFocusOutline, "Closing Settings with Escape does not restore a footer outline");
         check(panel.IsVisible && page.IsVisible && page.FrameOpacity < 1, "Back overlaps the page exit and overview entrance");
@@ -257,8 +281,8 @@ internal static class InterfaceChecks
         navigation.Show(interrupted); await Task.Delay(60);
         interrupted.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape });
         await Task.Delay(60);
-        var interruptedAnchor = PopupPlacement.BottomRight(interrupted.AnchorArea, new Size(interrupted.Width, interrupted.Height), interrupted.RenderScaling);
-        check(interrupted.Position.Y == interruptedAnchor.Y + Motion.SlideOffset(interrupted.FrameOpacity, interrupted.RenderScaling), "Reversing page entry uses the fixed anchor without adding a second slide offset");
+        var interruptedAnchor = interrupted.Anchor.Place(new Size(interrupted.Width, interrupted.Height), interrupted.RenderScaling);
+        check(interrupted.Position == interrupted.Anchor.Slide(interruptedAnchor, Motion.SlideOffset(interrupted.FrameOpacity, interrupted.RenderScaling)), "Reversing page entry uses the fixed anchor without adding a second slide offset");
         await Task.Delay((int)Motion.NavigationFadeMilliseconds + 50);
         settingsIcon.Focus(NavigationMethod.Tab);
         panel.Dismiss(); panel.OpenNearTray(false);

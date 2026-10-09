@@ -13,7 +13,7 @@ internal sealed class PageNavigation(UsagePanel panel)
         ActivePage = page;
         page.Navigating = true;
         page.LeaveRequested += Leave;
-        page.OpenPage(panel.AnchorArea);
+        page.OpenPage(panel.Anchor);
         panel.Dismiss(navigation: true);
     }
     void Leave(bool all)

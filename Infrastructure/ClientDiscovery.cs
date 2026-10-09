@@ -11,9 +11,16 @@ internal static class ClientDiscovery
         string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         if (!OperatingSystem.IsWindows())
         {
-            yield return Path.Combine(home, ".local", "bin", service.ToLowerInvariant());
+            string name = service.ToLowerInvariant();
+            yield return Path.Combine(home, ".local", "bin", name);
+            if (service == Services.Claude)
+                yield return Path.Combine(home, ".claude", "local", "claude");
             foreach (string directory in (Environment.GetEnvironmentVariable("PATH") ?? "").Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries))
-                yield return Path.Combine(directory, service.ToLowerInvariant());
+                yield return Path.Combine(directory, name);
+            // A desktop session's PATH often omits user package-manager folders that a shell adds.
+            foreach (string directory in new[] { Path.Combine(home, ".npm-global", "bin"), Path.Combine(home, ".volta", "bin"), Path.Combine(home, ".bun", "bin"),
+                Path.Combine(home, ".local", "share", "pnpm"), "/usr/local/bin", "/usr/bin", "/opt/homebrew/bin", Path.Combine("/home", "linuxbrew", ".linuxbrew", "bin") })
+                yield return Path.Combine(directory, name);
             yield break;
         }
         string local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);

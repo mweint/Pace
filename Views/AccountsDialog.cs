@@ -15,12 +15,14 @@ public sealed class AccountsDialog : PageDialog
     readonly Grid body = new();
     readonly DispatcherTimer saveTimer = new() { Interval = TimeSpan.FromMilliseconds(UiMetrics.AutoSaveMilliseconds) };
     readonly List<Reading> readings;
-    bool signingIn, reverting;
+    readonly SignInFlow signIn;
+    bool reverting;
     public AnimatedAccountList AccountList { get; } = new();
     public bool ShowingGeneral { get; private set; }
-    public AccountsDialog(List<Reading> readings, Settings settings, Action rescan, Action? persist = null, Action? changed = null, AppUpdates? updates = null, Action? installUpdate = null, bool showGeneral = false)
+    public AccountsDialog(List<Reading> readings, Settings settings, Action rescan, Action? persist = null, Action? changed = null, AppUpdates? updates = null, Action? installUpdate = null, bool showGeneral = false, SignInFlow? signIn = null)
     {
         this.readings = readings.ToList(); this.settings = settings; this.rescan = rescan;
+        this.signIn = signIn ?? new();
         this.persist = persist ?? settings.Save; this.changed = changed;
         this.updates = updates ?? new(settings);
         Title = "Pace · Settings";
@@ -41,14 +43,17 @@ public sealed class AccountsDialog : PageDialog
         layout.Children.Add(body); SetBody(layout);
         tabs.SelectionChanged += index => SelectTab(index == 0);
         accountTools.AddRequested += async service => await Login(service);
+        accountTools.CancelRequested += this.signIn.Cancel;
+        this.signIn.Changed += ShowSignIn;
         foreach (var reading in this.readings) AddAccount(reading);
         AccountList.Reordered += () => { saveTimer.Stop(); SaveEdits(); };
         saveTimer.Tick += (_, _) => { saveTimer.Stop(); SaveEdits(); };
-        Closed += (_, _) => { saveTimer.Stop(); general.Dispose(); };
+        Closed += (_, _) => { saveTimer.Stop(); general.Dispose(); this.signIn.Changed -= ShowSignIn; };
         if (readings.Count == 0) AddEmpty();
         FitContent();
         SelectTab(showGeneral);
         UpdateTrayCapacity();
+        ShowSignIn();
     }
     void AddEmpty()
     {
@@ -115,8 +120,7 @@ public sealed class AccountsDialog : PageDialog
         catch
         {
             settings.Accounts = previous;
-            trayCount.Text = "Couldn't save. Try again.";
-            trayCount.Foreground = Palette.Brush(Palette.Warning);
+            ShowWarning("Couldn't save. Try again.");
             return false;
         }
     }
@@ -126,17 +130,26 @@ public sealed class AccountsDialog : PageDialog
         foreach (var row in AccountList.Children.OfType<AccountEditorRow>())
             if (current.FirstOrDefault(r => r.Account.Key == row.Reading.Account.Key) is { } reading) row.UpdateConnection(reading);
     }
+    void ShowSignIn()
+    {
+        accountTools.ShowSignIn(signIn.Active, signIn.Link);
+        if (signIn.Active)
+        {
+            trayCount.Text = "Signing in…";
+            trayCount.Foreground = Palette.Brush(Palette.Muted);
+        }
+        else if (trayCount.Text is "Signing in…" or "Link copied") UpdateTrayCapacity();
+    }
     async Task Login(string service, string? existingFile = null)
     {
-        if (signingIn || IsClosing) return;
+        if (signIn.Active || IsClosing) return;
         if (!SaveEdits()) return;
-        signingIn = true;
-        trayCount.Text = "Signing in…";
-        foreach (var button in accountTools.Children.OfType<FilledButton>()) button.IsEnabled = false;
+        var result = await signIn.Run(service, settings, existingFile);
+        // Settings may have closed while the browser was open; the account still refreshes.
+        if (IsClosing) { if (result.Succeeded) rescan(); return; }
+        if (!result.Succeeded) { if (result.Message.Length > 0) ShowWarning(result.Message); return; }
         try
         {
-            await SignIn.Begin(service, settings, existingFile);
-            if (IsClosing) return;
             var accounts = await Providers.Discover(settings);
             if (IsClosing) return;
             AccountList.Children.Clear(); readings.Clear();
@@ -146,18 +159,13 @@ public sealed class AccountsDialog : PageDialog
                 readings.Add(reading); AddAccount(reading);
             }
             if (readings.Count == 0) AddEmpty();
-            rescan();
         }
-        catch (Exception e)
-        {
-            trayCount.Text = e is InvalidOperationException ? e.Message : "Sign-in failed. Try again.";
-            trayCount.Foreground = Palette.Brush(Palette.Warning);
-        }
-        finally
-        {
-            signingIn = false;
-            foreach (var button in accountTools.Children.OfType<FilledButton>()) button.IsEnabled = true;
-            if (trayCount.Foreground is ISolidColorBrush ink && ink.Color != Palette.Warning) UpdateTrayCapacity();
-        }
+        catch (Exception) { ShowWarning("Couldn't read accounts. Try again."); }
+        rescan();
+    }
+    void ShowWarning(string message)
+    {
+        trayCount.Text = message;
+        trayCount.Foreground = Palette.Brush(Palette.Warning);
     }
 }

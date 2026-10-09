@@ -24,6 +24,11 @@ internal static class Preview
         }
         var accounts = new AccountsDialog(demo, prefs, () => { }, persist: () => { }) { PreviewMode = true };
         await Capture(accounts, Path.Combine(folder, "accounts-preview.png"));
+        var toolbar = ((Control)accounts.Content!).GetVisualDescendants().OfType<AccountToolbar>().Single();
+        string? trayCount = toolbar.TrayCount.Text;
+        toolbar.ShowSignIn(true, "https://claude.ai/oauth/authorize"); toolbar.TrayCount.Text = "Signing in…";
+        await Capture(accounts, Path.Combine(folder, "accounts-signin-preview.png"));
+        toolbar.ShowSignIn(false, null); toolbar.TrayCount.Text = trayCount;
         ((Control)accounts.Content!).GetVisualDescendants().OfType<TabStrip>().Single().Focus(NavigationMethod.Tab);
         await Capture(accounts, Path.Combine(folder, "accounts-tabs-focused.png"));
         var first = accounts.AccountList.Children.OfType<AccountEditorRow>().First();
@@ -66,7 +71,9 @@ internal static class Preview
         await Capture(resetless, Path.Combine(folder, "resetless-detail-preview.png")); resetless.Close();
         var empty = new UsagePanel { PreviewMode = true };
         empty.UpdateRows([], new Settings(), false);
-        await Capture(empty, Path.Combine(folder, "onboarding-preview.png")); empty.Shutdown();
+        await Capture(empty, Path.Combine(folder, "onboarding-preview.png"));
+        empty.UpdateSignIn(true, "Complete sign-in in your browser…", "https://claude.ai/oauth/authorize");
+        await Capture(empty, Path.Combine(folder, "onboarding-signin-preview.png")); empty.Shutdown();
         var hover = new TrayHover { PreviewMode = true };
         hover.UpdateEntries(demo, prefs);
         await Capture(hover, Path.Combine(folder, "hover-preview.png")); hover.Close();

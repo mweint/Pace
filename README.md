@@ -24,10 +24,14 @@ tar xzf Pace-linux-x64.tar.gz
 x64 desktops with a StatusNotifier tray: KDE Plasma, or GNOME with the AppIndicator
 extension (included in Ubuntu). Requires the X11 libraries most desktops include
 (`libice6`, `libsm6`, `libfontconfig1`) and ICU. The panel opens on the panel edge
-where your desktop reserves space; hover summaries appear as the tray tooltip.
+where your desktop reserves space, beside the tray icon on X11 sessions and in that
+edge's corner on Wayland; hover summaries appear as the tray tooltip. Opening Pace
+from the applications menu while it runs shows its panel, which also works without a
+tray icon.
 
 Existing CLI sign-ins are detected automatically. Adding accounts requires the
-corresponding Claude or Codex CLI; sign-in opens in your browser.
+corresponding Claude or Codex CLI; sign-in opens in your browser. If no browser
+opens, **Copy link** copies the CLI's sign-in link to paste into one.
 
 ## Screenshots
 
@@ -78,7 +82,8 @@ Orange indicates an expiry within seven days. Pace does not redeem resets.
 
 Account names, visibility and order save automatically. Removing an account stops
 monitoring it and keeps its sign-in files. Click away to dismiss the panel;
-right-click the tray icon to quit. Usage refreshes every five minutes and pace
+right-click the tray icon to quit. Opening Pace again while it runs shows the panel.
+Sign-in can be cancelled while the browser is open and stops after ten minutes. Usage refreshes every five minutes and pace
 every minute.
 
 Claude account options include **5H bar** and **Fable bar** for the overview

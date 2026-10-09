@@ -11,15 +11,17 @@ public sealed class TrayApp : IDisposable
     readonly PageNavigation navigation;
     readonly Settings settings = Settings.Load();
     readonly AppUpdates updates;
+    readonly SignInFlow signIn = new();
     readonly DispatcherTimer timer = new() { Interval = TimeSpan.FromMilliseconds(AppTiming.PaceRefreshMilliseconds) };
     readonly DispatcherTimer updateTimer = new() { Interval = TimeSpan.FromMilliseconds(AppTiming.UpdateCheckMilliseconds) };
     readonly DispatcherTimer hoverTimer = new() { Interval = TimeSpan.FromMilliseconds(AppTiming.HoverPollMilliseconds) };
     List<Reading> readings = [];
     Task? refreshing;
-    bool busy, refreshQueued, signingIn, exiting, hoverPending;
+    bool busy, refreshQueued, exiting, hoverPending;
     long hoverStarted, suppressHoverUntil;
     PixelPoint hoverAnchor;
     PixelRect hoverBounds;
+    PixelPoint? trayClick;
     int ticks;
     public TrayApp(IClassicDesktopStyleApplicationLifetime lifetime)
     {
@@ -28,11 +30,12 @@ public sealed class TrayApp : IDisposable
         updates = new(settings);
         updates.Changed += () => { if (!exiting) panel.UpdateNotification(updates.Notify); };
         navigation.Changed += Render;
-        panel.LocateTray = () => tray.Bounds ?? (DesktopIntegration.Pointer is { } pointer ? new PixelRect(pointer, new PixelSize(1, 1)) : null);
+        panel.LocateTray = () => tray.Bounds ?? (TrayPointer() is { } pointer ? new PixelRect(pointer, new PixelSize(1, 1)) : null);
         tray.Update([]);
         tray.Clicked += () =>
         {
             HideHover();
+            if (!OperatingSystem.IsWindows() && DesktopIntegration.Pointer is { } pointer && OnPanel(pointer)) trayClick = pointer;
             if (navigation.ActivePage != null) navigation.DismissAll();
             else if (TrayToggle.ShouldClose(panel.IsVisible, panel.LastAutoHide, Environment.TickCount64)) panel.Dismiss();
             else panel.OpenNearTray();
@@ -42,7 +45,7 @@ public sealed class TrayApp : IDisposable
             HideHover();
             switch (command)
             {
-                case 1: if (navigation.ActivePage is { } page) page.Activate(); else panel.OpenNearTray(); break;
+                case 1: Show(); break;
                 case 2: _ = Refresh(); break;
                 case 3: EditAccounts(); break;
                 case 4: lifetime.Shutdown(); break;
@@ -69,29 +72,43 @@ public sealed class TrayApp : IDisposable
         panel.ManageAccountsRequested += () => EditAccounts(false);
         panel.AccountRequested += OpenDetails;
         panel.AddAccountRequested += async service => await AddAccount(service);
+        panel.CancelSignInRequested += signIn.Cancel;
+        signIn.Changed += () =>
+        {
+            if (exiting) return;
+            if (signIn.Active) panel.UpdateSignIn(true, "Complete sign-in in your browser…", signIn.Link);
+            else panel.UpdateSignIn(false, "");
+        };
         timer.Tick += async (_, _) => { Render(); if (++ticks % AppTiming.UsageRefreshTicks == 0) await Refresh(); };
         updateTimer.Tick += async (_, _) => await updates.Check();
         timer.Start(); updateTimer.Start(); hoverTimer.Start();
         _ = Refresh(); _ = updates.Check();
         panel.OpenNearTray();
     }
+    // Where the tray icon is when its bounds are unknown. Windows uses the pointer. Elsewhere only
+    // X11 reports it, and only a click that landed on a panel (not the work area) is trusted;
+    // the last such click also places later openings from the menu or a second launch.
+    PixelPoint? TrayPointer() => OperatingSystem.IsWindows() ? DesktopIntegration.Pointer : trayClick is { } click && OnPanel(click) ? click : null;
+    bool OnPanel(PixelPoint point) => panel.Screens.ScreenFromPoint(point) is { } screen && PopupAnchor.OnPanel(screen.Bounds, screen.WorkingArea, point);
+    // The tray menu's Show Pace, and a second launch of Pace.
+    public void Show()
+    {
+        if (exiting) return;
+        HideHover();
+        if (navigation.ActivePage is { } page) page.Activate(); else panel.OpenNearTray();
+    }
     void HideHover() { hover.Hide(); hoverPending = false; suppressHoverUntil = Environment.TickCount64 + AppTiming.HoverSuppressMilliseconds; }
     List<Reading> Ordered() => readings.Where(r => !settings.IsRemoved(r.Account)).OrderBy(r => settings.Accounts.FindIndex(p => p.Key == r.Account.Key)).ToList();
     async Task AddAccount(string service)
     {
-        if (exiting || signingIn) return;
-        signingIn = true; panel.UpdateSignIn(true, "Complete sign-in in your browser…");
-        try
-        {
-            await SignIn.Begin(service, settings);
-            if (exiting) return;
-            await Refresh();
-            if (exiting) return;
-            panel.UpdateSignIn(false, Ordered().Count == 0 ? "No sign-in found. Please try again." : "");
-            if (!panel.IsVisible && navigation.ActivePage == null) panel.OpenNearTray(false);
-        }
-        catch (Exception e) { if (!exiting) panel.UpdateSignIn(false, e is InvalidOperationException ? e.Message : "Sign-in failed. Please try again."); }
-        finally { signingIn = false; }
+        if (exiting || signIn.Active) return;
+        var result = await signIn.Run(service, settings);
+        if (exiting) return;
+        if (!result.Succeeded) { panel.UpdateSignIn(false, result.Message); return; }
+        await Refresh();
+        if (exiting) return;
+        panel.UpdateSignIn(false, Ordered().Count == 0 ? "No sign-in found. Please try again." : "");
+        if (!panel.IsVisible && navigation.ActivePage == null) panel.OpenNearTray(false);
     }
     // One refresh at a time. A request during a refresh runs once more afterward,
     // and callers awaiting either request see the final result.
@@ -155,12 +172,12 @@ public sealed class TrayApp : IDisposable
         if (navigation.ActivePage is { } active) { active.Activate(); return; }
         HideHover();
         navigation.Show(new AccountsDialog(Ordered(), settings, () => _ = Refresh(), changed: Render,
-            updates: updates, installUpdate: () => { if (updates.Install()) lifetime.Shutdown(); }, showGeneral: showGeneral));
+            updates: updates, installUpdate: () => { if (updates.Install()) lifetime.Shutdown(); }, showGeneral: showGeneral, signIn: signIn));
     }
     public void Dispose()
     {
         if (exiting) return;
-        exiting = true; timer.Stop(); updateTimer.Stop(); hoverTimer.Stop();
+        exiting = true; timer.Stop(); updateTimer.Stop(); hoverTimer.Stop(); signIn.Cancel();
         navigation.Shutdown(); panel.Shutdown(); hover.Close(); tray.Dispose();
     }
 }

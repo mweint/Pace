@@ -13,7 +13,7 @@ public sealed class UsagePanel : WidgetWindow
     // The tray icon's screen bounds, or the pointer when the desktop does not report them.
     public Func<PixelRect?>? LocateTray { get; set; }
     public long LastAutoHide { get; private set; }
-    public event Action? RefreshRequested, SettingsRequested, ManageAccountsRequested;
+    public event Action? RefreshRequested, SettingsRequested, ManageAccountsRequested, CancelSignInRequested;
     public event Action<Account>? AccountRequested;
     public event Action<string>? AddAccountRequested;
     public UsagePanel()
@@ -54,6 +54,7 @@ public sealed class UsagePanel : WidgetWindow
                 var view = new EmptyAccountsView(readings.Count > 0);
                 view.AddRequested += service => AddAccountRequested?.Invoke(service);
                 view.ManageRequested += () => ManageAccountsRequested?.Invoke();
+                view.CancelRequested += () => CancelSignInRequested?.Invoke();
                 rows.Children.Add(view);
             }
             ((EmptyAccountsView)rows.Children[0]).UpdateLoading(loading);
@@ -89,9 +90,11 @@ public sealed class UsagePanel : WidgetWindow
             if (!entrance.IsRunning) Position = entranceTarget;
         }
     }
-    public void UpdateSignIn(bool pending, string message)
+    public void UpdateSignIn(bool pending, string message, string? link = null)
     {
-        rows.Children.OfType<EmptyAccountsView>().FirstOrDefault()?.UpdateSignIn(pending, message);
+        rows.Children.OfType<EmptyAccountsView>().FirstOrDefault()?.UpdateSignIn(pending, message, link);
+        // A status line changes the empty view's height; re-measure it before fitting.
+        rows.InvalidateMeasure();
         FitContent();
     }
     public void OpenNearTray(bool newSession = true)

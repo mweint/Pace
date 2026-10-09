@@ -17,6 +17,7 @@ internal static class SelfTests
             var now = DateTimeOffset.Parse("2026-10-06T12:00:00Z");
             SettingsChecks.Run(Check);
             ClientChecks.Run(Check);
+            await LaunchChecks.Run(Check);
             PaceChecks.Run(Check, now);
             ProviderChecks.Run(Check, now);
             await UpdateChecks.Run(Check);

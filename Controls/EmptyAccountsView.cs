@@ -1,14 +1,18 @@
+using Avalonia.Input.Platform;
+
 namespace Pace;
 
 internal sealed class EmptyAccountsView : PaintedPanel
 {
     readonly TextBlock title, explanation, requirement, status;
     readonly FilledButton claude = Palette.ServiceButton(Services.Claude), codex = Palette.ServiceButton(Services.Codex);
+    readonly FilledButton cancel = Palette.Button("Cancel"), copyLink = Palette.Button("Copy link");
     readonly FilledButton? manage;
     bool signingIn;
+    string? link;
     public bool HasAccounts { get; }
     public event Action<string>? AddRequested;
-    public event Action? ManageRequested;
+    public event Action? ManageRequested, CancelRequested;
     public EmptyAccountsView(bool hasAccounts)
     {
         HasAccounts = hasAccounts;
@@ -26,10 +30,13 @@ internal sealed class EmptyAccountsView : PaintedPanel
         }
         else
         {
-            claude.MinWidth = codex.MinWidth = 0;
+            claude.MinWidth = codex.MinWidth = cancel.MinWidth = copyLink.MinWidth = 0;
             claude.Click += (_, _) => AddRequested?.Invoke(Services.Claude);
             codex.Click += (_, _) => AddRequested?.Invoke(Services.Codex);
-            Children.AddRange([claude, codex]);
+            cancel.Click += (_, _) => CancelRequested?.Invoke();
+            copyLink.Click += async (_, _) => await CopyLink();
+            cancel.IsVisible = copyLink.IsVisible = false;
+            Children.AddRange([claude, codex, cancel, copyLink]);
         }
         // The empty state sits inside the overview's outer inset.
         Margin = new Thickness(UiMetrics.OuterInset, 0);
@@ -64,6 +71,8 @@ internal sealed class EmptyAccountsView : PaintedPanel
         {
             Row(claude, UiMetrics.TextButtonHeight, 0, half);
             Row(codex, UiMetrics.TextButtonHeight, half + UiMetrics.CardGap, half);
+            Row(cancel, UiMetrics.TextButtonHeight, 0, half);
+            Row(copyLink, UiMetrics.TextButtonHeight, half + UiMetrics.CardGap, half);
         }
         y += UiMetrics.TextButtonHeight;
         if (!string.IsNullOrEmpty(status.Text))
@@ -82,8 +91,21 @@ internal sealed class EmptyAccountsView : PaintedPanel
         else if (!signingIn && status.Text == "Looking for accounts…" && !loading) status.Text = "";
         InvalidateMeasure();
     }
-    public void UpdateSignIn(bool pending, string message)
+    // While signing in, Cancel and (with a link from the CLI) Copy link replace the add actions.
+    public void UpdateSignIn(bool pending, string message, string? signInLink = null)
     {
-        signingIn = pending; status.Text = message; UpdateLoading(false);
+        signingIn = pending; link = pending ? signInLink : null; status.Text = message;
+        if (manage == null)
+        {
+            claude.IsVisible = codex.IsVisible = !pending;
+            cancel.IsVisible = pending; copyLink.IsVisible = link != null;
+        }
+        UpdateLoading(false);
+    }
+    async Task CopyLink()
+    {
+        if (link == null || TopLevel.GetTopLevel(this)?.Clipboard is not { } clipboard) return;
+        await clipboard.SetTextAsync(link);
+        status.Text = "Link copied. Paste it into your browser."; InvalidateMeasure();
     }
 }

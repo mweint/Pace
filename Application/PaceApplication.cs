@@ -7,7 +7,7 @@ namespace Pace;
 public sealed class PaceApplication : Avalonia.Application
 {
     TrayApp? coordinator;
-    Mutex? singleton;
+    SingleInstance? instance;
     public override void Initialize()
     {
         Name = "Pace";
@@ -44,20 +44,20 @@ public sealed class PaceApplication : Avalonia.Application
             }
             else
             {
-                bool created;
-                // Unix sessions differ between autostart (systemd), menu launches and terminals,
-                // so the Linux instance lock is per user rather than per session.
-                singleton = OperatingSystem.IsWindows() ? new Mutex(true, "Local\\Pace.TrayApp.V1", out created)
-                    : new Mutex(true, "Pace.TrayApp.V1", new NamedWaitHandleOptions { CurrentUserOnly = true, CurrentSessionOnly = false }, out created);
-                if (!created || (Settings.Load().AutomaticUpdates && UpdateInstaller.Apply()))
+                instance = SingleInstance.Acquire();
+                if (instance == null || (Settings.Load().AutomaticUpdates && UpdateInstaller.Apply()))
+                {
+                    instance?.Dispose();
                     Dispatcher.UIThread.Post(() => desktop.Shutdown());
+                }
                 else
                 {
                     // A tray app should survive an unexpected error in one refresh or view.
                     Dispatcher.UIThread.UnhandledException += (_, e) => { ErrorLog.Write(e.Exception); e.Handled = true; };
                     TaskScheduler.UnobservedTaskException += (_, e) => { ErrorLog.Write(e.Exception); e.SetObserved(); };
                     coordinator = new(desktop);
-                    desktop.Exit += (_, _) => { coordinator.Dispose(); singleton.Dispose(); };
+                    instance.Listen(coordinator.Show);
+                    desktop.Exit += (_, _) => { coordinator.Dispose(); instance.Dispose(); };
                 }
             }
         }

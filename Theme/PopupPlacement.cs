@@ -10,6 +10,8 @@ public readonly record struct PopupAnchor(PixelRect Area, PixelRect Screen, Pixe
     public ScreenEdge Edge => Icon is { } icon ? IconEdge(icon) : PanelEdge();
 
     public static PopupAnchor For(Avalonia.Platform.Screen screen, PixelRect? icon = null) => new(screen.WorkingArea, screen.Bounds, icon);
+    // A point on a panel that reserves space: on the screen but outside its work area.
+    public static bool OnPanel(PixelRect screen, PixelRect area, PixelPoint point) => screen.Contains(point) && !area.Contains(point);
 
     public PixelPoint Place(Size size, double scale = 1)
     {

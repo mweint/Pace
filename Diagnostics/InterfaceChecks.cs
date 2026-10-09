@@ -235,6 +235,8 @@ internal static class InterfaceChecks
             "A side taskbar places popups beside the icon");
         var corner = new PopupAnchor(new PixelRect(0, 0, 1920, 1032), screen, new PixelRect(1900, 1040, 24, 24));
         check(corner.Place(size).X == 1920 - 388 - 8, "Popups stay inside the work area near the screen corner");
+        check(PopupAnchor.OnPanel(screen, top.Area, new(1700, 12)) && !PopupAnchor.OnPanel(screen, top.Area, new(1700, 500)) && !PopupAnchor.OnPanel(screen, top.Area, new(2500, 12)),
+            "Only a click on a reserved panel strip stands in for the tray icon");
     }
     static async Task Navigation(Action<bool, string> check, List<Reading> demo)
     {

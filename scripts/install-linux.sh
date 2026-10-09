@@ -18,7 +18,7 @@ refresh_menus() {
 }
 
 if [ "${1:-}" = "--uninstall" ]; then
-    pkill -x Pace 2>/dev/null || true
+    pkill -x -u "$(id -u)" Pace 2>/dev/null || true
     rm -rf "$target"
     rm -f "$entry" "$icon" "$config/autostart/pace.desktop"
     [ -L "$launcher" ] && rm -f "$launcher"
@@ -28,6 +28,14 @@ if [ "${1:-}" = "--uninstall" ]; then
 fi
 
 [ -x "$here/app/Pace" ] || { echo "Run this script from the extracted Pace folder." >&2; exit 1; }
+
+# A running copy holds the single-instance lock, so stop it now and restart it after installing.
+running=false
+if pkill -x -u "$(id -u)" Pace 2>/dev/null; then
+    running=true
+    i=0
+    while pgrep -x -u "$(id -u)" Pace >/dev/null 2>&1 && [ $i -lt 50 ]; do sleep 0.1; i=$((i + 1)); done
+fi
 
 # Replace the folder rather than overwriting files, so a running copy keeps working until it restarts.
 staging=$target.new
@@ -57,5 +65,10 @@ StartupWMClass=Pace
 EOF
 refresh_menus
 
-echo "Pace installed. Open it from your applications menu, or run: $target/Pace"
+if $running; then
+    nohup "$target/Pace" >/dev/null 2>&1 &
+    echo "Pace updated and restarted."
+else
+    echo "Pace installed. Open it from your applications menu, or run: $target/Pace"
+fi
 case ":$PATH:" in *":$HOME/.local/bin:"*) ;; *) echo "Add ~/.local/bin to PATH to run 'pace' from a terminal." ;; esac

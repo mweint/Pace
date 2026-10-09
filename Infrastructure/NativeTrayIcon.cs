@@ -146,10 +146,11 @@ internal sealed class NativeTrayIcon : IDisposable
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern bool UnregisterClass(string name, IntPtr instance);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern IntPtr CreateWindowEx(uint exstyle, string cls, string caption, uint style, int x, int y, int width, int height, IntPtr parent, IntPtr menu, IntPtr instance, IntPtr parameter);
     [DllImport("user32.dll")] static extern bool DestroyWindow(IntPtr hwnd);
-    [DllImport("user32.dll")] static extern int GetMessage(out NativeMessage message, IntPtr hwnd, uint min, uint max);
+    // The class is registered as Unicode, so its message loop and default procedure must be too.
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetMessage(out NativeMessage message, IntPtr hwnd, uint min, uint max);
     [DllImport("user32.dll")] static extern bool TranslateMessage(ref NativeMessage message);
-    [DllImport("user32.dll")] static extern IntPtr DispatchMessage(ref NativeMessage message);
-    [DllImport("user32.dll")] static extern IntPtr DefWindowProc(IntPtr hwnd, uint message, IntPtr wparam, IntPtr lparam);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern IntPtr DispatchMessage(ref NativeMessage message);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern IntPtr DefWindowProc(IntPtr hwnd, uint message, IntPtr wparam, IntPtr lparam);
     [DllImport("user32.dll")] static extern bool PostMessage(IntPtr hwnd, uint message, IntPtr wparam, IntPtr lparam);
     [DllImport("user32.dll")] static extern void PostQuitMessage(int code);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern uint RegisterWindowMessage(string message);

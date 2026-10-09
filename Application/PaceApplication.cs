@@ -44,7 +44,11 @@ public sealed class PaceApplication : Avalonia.Application
             }
             else
             {
-                singleton = new Mutex(true, OperatingSystem.IsWindows() ? "Local\\Pace.TrayApp.V1" : "Pace.TrayApp.V1", out bool created);
+                bool created;
+                // Unix sessions differ between autostart (systemd), menu launches and terminals,
+                // so the Linux instance lock is per user rather than per session.
+                singleton = OperatingSystem.IsWindows() ? new Mutex(true, "Local\\Pace.TrayApp.V1", out created)
+                    : new Mutex(true, "Pace.TrayApp.V1", new NamedWaitHandleOptions { CurrentUserOnly = true, CurrentSessionOnly = false }, out created);
                 if (!created || (Settings.Load().AutomaticUpdates && UpdateInstaller.Apply()))
                     Dispatcher.UIThread.Post(() => desktop.Shutdown());
                 else

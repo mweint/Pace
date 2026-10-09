@@ -23,7 +23,7 @@ public sealed class UsagePanel : WidgetWindow
         Title = "Pace";
         viewport = new(rows);
         var layout = new DockPanel();
-        footer = new FooterBar("Pace", null, refresh, settingsButton);
+        footer = new FooterBar("", null, refresh, settingsButton) { Status = "" };
         DockPanel.SetDock(footer, Dock.Bottom);
         layout.Children.Add(footer); layout.Children.Add(viewport);
         SetBody(layout);
@@ -49,7 +49,7 @@ public sealed class UsagePanel : WidgetWindow
         refresh.Spinning = loading;
         if (!loading) refresh.IsVisible = visible.Any(r => r.CanRetry);
         var updated = visible.Where(r => r.Error == null).Select(r => (DateTimeOffset?)r.Updated).Max();
-        footer.Caption = updated is { } time ? $"Pace · Updated {time.ToLocalTime():h:mm tt}" : "Pace";
+        footer.Status = updated is { } time ? $"Updated {time.ToLocalTime():h:mm tt}" : "";
         var existing = rows.Children.OfType<AccountRow>().ToList();
         bool same = existing.Count == visible.Count && existing.Select(r => r.Reading.Account.Key).SequenceEqual(visible.Select(r => r.Account.Key));
         if (visible.Count == 0)

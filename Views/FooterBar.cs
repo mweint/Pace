@@ -3,7 +3,23 @@ namespace Pace;
 internal sealed class FooterBar : Canvas
 {
     readonly TextBlock label;
-    public string Caption { set => label.Text = value; }
+    TextBlock? status;
+    // Status text replaces the title: body size, muted and centred in the bar.
+    public string Status
+    {
+        set
+        {
+            if (status == null)
+            {
+                Children.Remove(label);
+                status = Palette.Label("", color: Palette.Muted);
+                Children.Add(status); SetLeft(status, UiMetrics.ContentInset);
+            }
+            status.Text = value;
+            status.Measure(Size.Infinity);
+            SetTop(status, Math.Round((Height - status.DesiredSize.Height) / 2));
+        }
+    }
     public FooterBar(string caption, IconButton? back = null, params IconButton[] actions)
     {
         Height = UiMetrics.ToolbarHeight;

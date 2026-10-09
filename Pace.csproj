@@ -8,7 +8,7 @@
     <RootNamespace>Pace</RootNamespace>
     <Product>Pace</Product>
     <Title>Pace</Title>
-    <Version>0.2.0</Version>
+    <Version>0.1.0</Version>
     <ApplicationIcon>Assets\Icons\pace.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>

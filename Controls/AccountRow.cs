@@ -109,6 +109,6 @@ public sealed class AccountRow : PaintedPanel, IThemedSection
     }
     static double Centered(Rect area, FormattedText text) => Math.Round(area.Top + (area.Height - text.Height) / 2);
     string? StatusLabel(UsageWindow window, DateTimeOffset now) => Reading.Error != null
-        ? Reading.Error.Contains("rate limit", StringComparison.OrdinalIgnoreCase) || Reading.Error.StartsWith("Retry") ? "Stale · rate limited" : "Stale · hover for details"
+        ? Reading.RateLimited ? "Stale · rate limited" : "Stale · hover for details"
         : PaceMath.Classify(window, now) != PaceState.Exhausted ? PaceMath.AheadLabel(PaceMath.Calculate(window, now)) : null;
 }

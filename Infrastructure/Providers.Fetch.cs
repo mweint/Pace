@@ -19,14 +19,14 @@ public static partial class Providers
     public static async Task<Reading> Fetch(Account account)
     {
         var now = DateTimeOffset.UtcNow;
-        Reading Failed(string message, ConnectionIssue issue = ConnectionIssue.None) => new(account, null, message, now, ConnectionIssue: issue);
+        Reading Failed(string message, ConnectionIssue issue = ConnectionIssue.None, bool rateLimited = false) => new(account, null, message, now, ConnectionIssue: issue, RateLimited: rateLimited);
         var login = await Task.Run(() => ReadLogin(account.CredentialPath));
         if (login == null)
             return Failed("Sign-in is missing or unreadable. Reconnect in Accounts.", ConnectionIssue.CredentialsMissing);
         if (login.Account.Key != account.Key)
             return Failed("A different account is signed in. Reconnect in Accounts.", ConnectionIssue.AccountChanged);
         if (Cooldowns.TryGetValue(account.Key, out var eligible) && now < eligible)
-            return Failed($"Retry in {PaceMath.Duration(eligible - now)} (service rate limit)");
+            return Failed($"Retry in {PaceMath.Duration(eligible - now)} (service rate limit)", rateLimited: true);
         bool claude = account.Service == Services.Claude;
         try
         {
@@ -34,7 +34,7 @@ public static partial class Providers
             if (reply.StatusCode == HttpStatusCode.TooManyRequests)
             {
                 var retry = SetCooldown(account.Key, reply, now);
-                return Failed($"Service rate limit; retry in {PaceMath.Duration(retry - now)}");
+                return Failed($"Service rate limit; retry in {PaceMath.Duration(retry - now)}", rateLimited: true);
             }
             if (reply.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
                 return Failed("Service rejected this sign-in. Reconnect in Accounts.", ConnectionIssue.SignInRejected);
@@ -119,11 +119,12 @@ public static partial class Providers
 
     static DateTimeOffset SetCooldown(string key, HttpResponseMessage reply, DateTimeOffset now)
     {
-        // Without a service retry time, each consecutive 429 doubles the wait.
+        // Without a usable service retry time, each consecutive 429 doubles the wait.
         int streak = RateLimitStreaks[key] = RateLimitStreaks.GetValueOrDefault(key) + 1;
         var backoff = TimeSpan.FromTicks(Math.Min(DefaultRetry.Ticks << Math.Min(streak - 1, 4), MaxRetry.Ticks));
         var retry = reply.Headers.RetryAfter;
-        var eligible = retry?.Date ?? now + (retry?.Delta ?? backoff);
+        var eligible = retry?.Date is { } date && date > now ? date
+            : retry?.Delta is { } delta && delta > TimeSpan.Zero ? now + delta : now + backoff;
         Cooldowns[key] = eligible;
         SaveCooldowns();
         return eligible;

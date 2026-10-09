@@ -16,6 +16,8 @@ internal static class Preview
         await Capture(overview, path);
         overview.UpdateNotification(true);
         await Capture(overview, Path.Combine(folder, "update-notification.png"));
+        overview.UpdateRows(demo.Select((r, i) => i == 0 ? r with { Error = "Service could not be reached" } : r).ToList(), prefs, false);
+        await Capture(overview, Path.Combine(folder, "retry-preview.png"));
         overview.Shutdown();
         foreach (var (name, entries) in new[] { ("accounts-three.png", demo.Take(3).ToList()), ("accounts-empty.png", new List<Reading>()) })
         {

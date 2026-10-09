@@ -4,7 +4,8 @@ public sealed class UsagePanel : WidgetWindow
 {
     readonly SectionList rows = new();
     readonly ScrollViewport viewport;
-    readonly IconButton refresh = new("refresh", "Refresh usage");
+    readonly IconButton refresh = new("refresh", "Retry") { IsVisible = false };
+    readonly FooterBar footer;
     readonly IconButton settingsButton = new("settings", "Settings");
     readonly MotionTween entrance;
     PixelPoint entranceTarget;
@@ -22,7 +23,7 @@ public sealed class UsagePanel : WidgetWindow
         Title = "Pace";
         viewport = new(rows);
         var layout = new DockPanel();
-        var footer = new FooterBar("Pace", null, refresh, settingsButton);
+        footer = new FooterBar("Pace", null, refresh, settingsButton);
         DockPanel.SetDock(footer, Dock.Bottom);
         layout.Children.Add(footer); layout.Children.Add(viewport);
         SetBody(layout);
@@ -42,8 +43,13 @@ public sealed class UsagePanel : WidgetWindow
     public void UpdateNotification(bool available) { settingsButton.Notification = available; settingsButton.InvalidateVisual(); }
     public void UpdateRows(List<Reading> readings, Settings settings, bool loading)
     {
-        refresh.Spinning = loading;
         var visible = readings.Where(r => settings.For(r.Account).Show).ToList();
+        // Usage refreshes on its own; Retry appears only for a failure a new request could fix,
+        // and stays through its own spin.
+        refresh.Spinning = loading;
+        if (!loading) refresh.IsVisible = visible.Any(r => r.CanRetry);
+        var updated = visible.Where(r => r.Error == null).Select(r => (DateTimeOffset?)r.Updated).Max();
+        footer.Caption = updated is { } time ? $"Pace · Updated {time.ToLocalTime():h:mm tt}" : "Pace";
         var existing = rows.Children.OfType<AccountRow>().ToList();
         bool same = existing.Count == visible.Count && existing.Select(r => r.Reading.Account.Key).SequenceEqual(visible.Select(r => r.Account.Key));
         if (visible.Count == 0)

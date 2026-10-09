@@ -13,6 +13,7 @@ public sealed class TrayApp : IDisposable
     readonly AppUpdates updates;
     readonly SignInFlow signIn = new();
     readonly DispatcherTimer timer = new() { Interval = TimeSpan.FromMilliseconds(AppTiming.PaceRefreshMilliseconds) };
+    readonly DispatcherTimer usageTimer = new() { Interval = TimeSpan.FromMilliseconds(AppTiming.UsageRefreshMilliseconds) };
     readonly DispatcherTimer updateTimer = new() { Interval = TimeSpan.FromMilliseconds(AppTiming.UpdateCheckMilliseconds) };
     readonly DispatcherTimer hoverTimer = new() { Interval = TimeSpan.FromMilliseconds(AppTiming.HoverPollMilliseconds) };
     List<Reading> readings = [];
@@ -22,7 +23,6 @@ public sealed class TrayApp : IDisposable
     PixelPoint hoverAnchor;
     PixelRect hoverBounds;
     PixelPoint? trayClick;
-    int ticks;
     public TrayApp(IClassicDesktopStyleApplicationLifetime lifetime)
     {
         this.lifetime = lifetime;
@@ -38,7 +38,7 @@ public sealed class TrayApp : IDisposable
             if (!OperatingSystem.IsWindows() && DesktopIntegration.Pointer is { } pointer && OnPanel(pointer)) trayClick = pointer;
             if (navigation.ActivePage != null) navigation.DismissAll();
             else if (TrayToggle.ShouldClose(panel.IsVisible, panel.LastAutoHide, Environment.TickCount64)) panel.Dismiss();
-            else panel.OpenNearTray();
+            else { panel.OpenNearTray(); RefreshIfStale(); }
         };
         tray.MenuSelected += command =>
         {
@@ -46,7 +46,6 @@ public sealed class TrayApp : IDisposable
             switch (command)
             {
                 case 1: Show(); break;
-                case 2: _ = Refresh(); break;
                 case 3: EditAccounts(); break;
                 case 4: lifetime.Shutdown(); break;
             }
@@ -79,9 +78,10 @@ public sealed class TrayApp : IDisposable
             if (signIn.Active) panel.UpdateSignIn(true, "Complete sign-in in your browser…", signIn.Link);
             else panel.UpdateSignIn(false, "");
         };
-        timer.Tick += async (_, _) => { Render(); if (++ticks % AppTiming.UsageRefreshTicks == 0) await Refresh(); };
+        timer.Tick += (_, _) => Render();
+        usageTimer.Tick += async (_, _) => await Refresh();
         updateTimer.Tick += async (_, _) => await updates.Check();
-        timer.Start(); updateTimer.Start(); hoverTimer.Start();
+        timer.Start(); usageTimer.Start(); updateTimer.Start(); hoverTimer.Start();
         _ = Refresh(); _ = updates.Check();
         _ = OpenAtStartup();
     }
@@ -103,7 +103,7 @@ public sealed class TrayApp : IDisposable
     {
         if (exiting) return;
         HideHover();
-        if (navigation.ActivePage is { } page) page.Activate(); else panel.OpenNearTray();
+        if (navigation.ActivePage is { } page) page.Activate(); else { panel.OpenNearTray(); RefreshIfStale(); }
     }
     void HideHover() { hover.Hide(); hoverPending = false; suppressHoverUntil = Environment.TickCount64 + AppTiming.HoverSuppressMilliseconds; }
     List<Reading> Ordered() => readings.Where(r => !settings.IsRemoved(r.Account)).OrderBy(r => settings.Accounts.FindIndex(p => p.Key == r.Account.Key)).ToList();
@@ -131,10 +131,13 @@ public sealed class TrayApp : IDisposable
     async Task RefreshLoop()
     {
         busy = true;
+        long started = Environment.TickCount64;
         try
         {
             do { refreshQueued = false; await RefreshOnce(); }
             while (refreshQueued && !exiting);
+            int remaining = (int)(Motion.MinimumSpinMilliseconds - (Environment.TickCount64 - started));
+            if (remaining > 0 && !exiting) await Task.Delay(remaining);
         }
         finally { busy = false; refreshing = null; Render(); }
     }
@@ -152,13 +155,19 @@ public sealed class TrayApp : IDisposable
             int index = readings.FindIndex(r => r.Account.Key == account.Key);
             if (index < 0 || settings.IsRemoved(account)) continue;
             var old = readings[index];
-            if (fetched.Error != null && old.Weekly != null) fetched = old with { Error = fetched.Error, ConnectionIssue = fetched.ConnectionIssue };
+            if (fetched.Error != null && old.Weekly != null) fetched = old with { Error = fetched.Error, ConnectionIssue = fetched.ConnectionIssue, RateLimited = fetched.RateLimited };
             else if (fetched.ResetError != null && old.Resets?.Grants != null && fetched.Resets?.Count == old.Resets.Count) fetched = fetched with { Resets = old.Resets };
             readings[index] = fetched; Render();
         }
         settings.TrySave();
     }
-    // Repeated refresh clicks reuse recent readings; failed readings always retry.
+    // After sleep the timer may lag; opening the panel catches up on old readings.
+    void RefreshIfStale()
+    {
+        var limit = TimeSpan.FromMilliseconds(2 * AppTiming.UsageRefreshMilliseconds);
+        if (readings.Any(r => r.Error == null && DateTimeOffset.UtcNow - r.Updated > limit)) _ = Refresh();
+    }
+    // Repeated refreshes reuse recent readings; failed readings always retry.
     static bool IsFresh(Reading? reading) => reading is { Weekly: not null, Error: null }
         && DateTimeOffset.UtcNow - reading.Updated < TimeSpan.FromMilliseconds(AppTiming.UsageFreshMilliseconds);
     void Render()

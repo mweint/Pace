@@ -3,7 +3,7 @@ namespace Pace;
 public sealed class AccountDetailsDialog : PageDialog
 {
     readonly SectionList content = new();
-    readonly IconButton refresh = new("refresh", "Refresh usage");
+    readonly IconButton refresh = new("refresh", "Retry") { IsVisible = false };
     (Reading Reading, string Name, bool Relative) shown;
     public string AccountKey { get; }
     public event Action? RefreshRequested;
@@ -26,6 +26,7 @@ public sealed class AccountDetailsDialog : PageDialog
     {
         if (IsClosing) return;
         refresh.Spinning = loading;
+        if (!loading) refresh.IsVisible = reading.CanRetry;
         var shown = (reading, settings.DisplayName(reading.Account), settings.RelativeResetTime);
         if (shown == this.shown)
         {

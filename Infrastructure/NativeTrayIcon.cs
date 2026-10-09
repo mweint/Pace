@@ -99,7 +99,7 @@ internal sealed class NativeTrayIcon : IDisposable
         var menu = CreatePopupMenu();
         try
         {
-            AppendMenu(menu, 0, 1, "Show Pace"); AppendMenu(menu, 0, 2, "Refresh");
+            AppendMenu(menu, 0, 1, "Show Pace");
             AppendMenu(menu, 0, 3, "Settings…"); AppendMenu(menu, 0x800, 0, "");
             AppendMenu(menu, 0, 4, "Quit");
             var pointer = DesktopIntegration.Pointer ?? default;

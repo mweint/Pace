@@ -7,6 +7,8 @@ public static class Motion
     public const double IconFadeMilliseconds = 100;
     public const double TabMilliseconds = 140;
     public const double SpinMilliseconds = 1400;
+    // A retry that needs no request still spins long enough to be seen.
+    public const double MinimumSpinMilliseconds = 600;
     // Vertical travel, in physical pixels, for a frame at the given opacity.
     public static int SlideOffset(double opacity, double scale) => (int)Math.Round((1 - opacity) * UiMetrics.SlideDistance * scale);
     public static double Linear(double progress) => Math.Clamp(progress, 0, 1);

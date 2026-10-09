@@ -83,12 +83,6 @@ internal static class Preview
             using var icon = TrayDrawing.Bitmap(demo, DateTimeOffset.UtcNow, size);
             icon.Save(Path.Combine(folder, size == 128 ? "tray-preview.png" : $"tray-{size}px.png"), PngBitmapEncoderOptions.Default);
         }
-        for (int count = 1; count < AccountRules.MaxTrayAccounts; count++)
-            foreach (int size in new[] { 16, 32 })
-            {
-                using var icon = TrayDrawing.Bitmap(demo.Take(count).ToList(), DateTimeOffset.UtcNow, size);
-                icon.Save(Path.Combine(folder, $"tray-{count}-accounts-{size}px.png"), PngBitmapEncoderOptions.Default);
-            }
     }
     internal static async Task Capture(WidgetWindow view, string path)
     {

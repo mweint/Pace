@@ -10,9 +10,10 @@ public static partial class Providers
     const string ClaudeUsage = "https://api.anthropic.com/api/oauth/usage?cedar_ember=1&skip_spend=1";
     const string CodexUsage = "https://chatgpt.com/backend-api/wham/usage";
     const string CodexResetCredits = "https://chatgpt.com/backend-api/wham/rate-limit-reset-credits";
-    static readonly TimeSpan DefaultRetry = TimeSpan.FromMinutes(5);
+    static readonly TimeSpan DefaultRetry = TimeSpan.FromMinutes(5), MaxRetry = TimeSpan.FromHours(1);
     static readonly HttpClient Client = new(new HttpClientHandler { AllowAutoRedirect = false }) { Timeout = TimeSpan.FromSeconds(20) };
     static readonly Dictionary<string, DateTimeOffset> Cooldowns = LoadCooldowns();
+    static readonly Dictionary<string, int> RateLimitStreaks = [];
     static string CooldownFile => Path.Combine(Settings.DirectoryPath, "retry-times.json");
 
     public static async Task<Reading> Fetch(Account account)
@@ -39,6 +40,7 @@ public static partial class Providers
                 return Failed("Service rejected this sign-in. Reconnect in Accounts.", ConnectionIssue.SignInRejected);
             if (!reply.IsSuccessStatusCode)
                 return Failed($"Service returned HTTP {(int)reply.StatusCode}");
+            RateLimitStreaks.Remove(account.Key);
             if (await ReadJson(reply) is not { } data)
                 return Failed("Service returned an unexpected response");
             if ((claude ? ParseClaude(data) : ParseCodex(data, now)) is not { } weekly)
@@ -76,6 +78,7 @@ public static partial class Providers
                 SetCooldown(cooldownKey, reply, now);
             if (!reply.IsSuccessStatusCode)
                 return (summary, "Reset expiry dates could not be refreshed");
+            RateLimitStreaks.Remove(cooldownKey);
             var document = await ReadJson(reply);
             return (document == null ? summary : ParseCodexResets(document, now) ?? summary, null);
         }
@@ -116,8 +119,11 @@ public static partial class Providers
 
     static DateTimeOffset SetCooldown(string key, HttpResponseMessage reply, DateTimeOffset now)
     {
+        // Without a service retry time, each consecutive 429 doubles the wait.
+        int streak = RateLimitStreaks[key] = RateLimitStreaks.GetValueOrDefault(key) + 1;
+        var backoff = TimeSpan.FromTicks(Math.Min(DefaultRetry.Ticks << Math.Min(streak - 1, 4), MaxRetry.Ticks));
         var retry = reply.Headers.RetryAfter;
-        var eligible = retry?.Date ?? now + (retry?.Delta ?? DefaultRetry);
+        var eligible = retry?.Date ?? now + (retry?.Delta ?? backoff);
         Cooldowns[key] = eligible;
         SaveCooldowns();
         return eligible;

@@ -146,6 +146,7 @@ public sealed class TrayApp : IDisposable
         Render();
         foreach (var account in accounts)
         {
+            if (IsFresh(readings.FirstOrDefault(r => r.Account.Key == account.Key))) continue;
             var fetched = await Providers.Fetch(account);
             if (exiting) return;
             int index = readings.FindIndex(r => r.Account.Key == account.Key);
@@ -157,6 +158,9 @@ public sealed class TrayApp : IDisposable
         }
         settings.TrySave();
     }
+    // Repeated refresh clicks reuse recent readings; failed readings always retry.
+    static bool IsFresh(Reading? reading) => reading is { Weekly: not null, Error: null }
+        && DateTimeOffset.UtcNow - reading.Updated < TimeSpan.FromMilliseconds(AppTiming.UsageFreshMilliseconds);
     void Render()
     {
         if (exiting) return;

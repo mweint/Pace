@@ -83,7 +83,15 @@ public sealed class TrayApp : IDisposable
         updateTimer.Tick += async (_, _) => await updates.Check();
         timer.Start(); updateTimer.Start(); hoverTimer.Start();
         _ = Refresh(); _ = updates.Check();
-        panel.OpenNearTray();
+        _ = OpenAtStartup();
+    }
+    // The Windows icon is added on the tray thread; opening before then would anchor the panel
+    // at the pointer instead of the icon, and the first click would move it.
+    async Task OpenAtStartup()
+    {
+        for (int i = 0; OperatingSystem.IsWindows() && tray.Bounds == null && i < AppTiming.TrayReadyChecks; i++)
+            await Task.Delay(AppTiming.TrayReadyPollMilliseconds);
+        if (!exiting && !panel.IsVisible && navigation.ActivePage == null) panel.OpenNearTray();
     }
     // Where the tray icon is when its bounds are unknown. Windows uses the pointer. Elsewhere only
     // X11 reports it, and only a click that landed on a panel (not the work area) is trusted;

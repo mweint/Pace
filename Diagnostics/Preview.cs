@@ -8,7 +8,7 @@ internal static class Preview
     {
         string folder = Path.GetDirectoryName(Path.GetFullPath(path))!;
         Directory.CreateDirectory(folder);
-        var demo = SampleData.Readings();
+        var demo = SampleData.ScreenshotReadings();
         var prefs = new Settings();
         foreach (var reading in demo) prefs.For(reading.Account);
         var overview = new UsagePanel { PreviewMode = true };
@@ -65,9 +65,10 @@ internal static class Preview
         hidden.UpdateRows(demo, prefs, false);
         await Capture(hidden, Path.Combine(folder, "hidden-limits-preview.png")); hidden.Shutdown();
         prefs.For(demo[2].Account).ShowFiveHour = prefs.For(demo[2].Account).ShowFable = true;
-        var detail = new AccountDetailsDialog(SampleData.Detail(demo[2]), prefs) { PreviewMode = true };
+        var detailReading = demo[2] with { Limits = [new("weekly", "Weekly", demo[2].Weekly!), .. demo[2].Limits!] };
+        var detail = new AccountDetailsDialog(detailReading, prefs) { PreviewMode = true };
         await Capture(detail, Path.Combine(folder, "account-detail-preview.png")); detail.Close();
-        var resetless = new AccountDetailsDialog(SampleData.Detail(demo[2]) with { Limits = [new("weekly", "Weekly", demo[2].Weekly!), new("session", "Five-hour", new(0, null, TimeSpan.FromHours(5)))] }, prefs) { PreviewMode = true };
+        var resetless = new AccountDetailsDialog(detailReading with { Limits = [new("weekly", "Weekly", demo[2].Weekly!), new("session", "Five-hour", new(0, null, TimeSpan.FromHours(5)))] }, prefs) { PreviewMode = true };
         await Capture(resetless, Path.Combine(folder, "resetless-detail-preview.png")); resetless.Close();
         var empty = new UsagePanel { PreviewMode = true };
         empty.UpdateRows([], new Settings(), false);

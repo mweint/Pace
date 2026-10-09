@@ -1,165 +1,67 @@
 # Pace
 
-A Windows and Linux tray app that shows Claude and Codex subscription usage relative to each
-account's weekly reset.
+A compact tray app for tracking AI subscription usage across Codex and Claude accounts on Windows and Linux. See how your usage compares with the time elapsed in each account's weekly cycle.
+
+![Weekly usage overview with two Codex accounts and one Claude account](docs/screenshots/overview.png)
 
 ## Download
 
-[Download for Windows](https://github.com/mweint/Pace/releases/latest/download/Pace-win-x64.zip)
+**[Windows](https://github.com/mweint/Pace/releases/latest/download/Pace-win-x64.zip)** — Extract the ZIP and open `Pace.exe` in the `Pace` folder. Windows 10/11, x64; .NET is included.
 
-1. Extract the ZIP.
-2. Open `Pace.exe` in the extracted `Pace` folder.
-3. Click the tray icon to view usage or manage accounts.
+**[Linux (preview)](https://github.com/mweint/Pace/releases/latest/download/Pace-linux-x64.tar.gz)** — Extract the archive and run `./Pace/install.sh`. Requires an x64 desktop with X11 libraries and ICU. Tray support works with KDE Plasma or GNOME's AppIndicator extension. Linux still needs validation on real desktops.
 
-Windows 10/11, x64. The .NET runtime is included. Keep the extracted files together.
-### Linux (preview)
+Existing CLI sign-ins are detected automatically. To add an account, install the corresponding Codex or Claude CLI and sign in through Pace. Click the tray icon to open the panel.
 
-[Download for Linux](https://github.com/mweint/Pace/releases/latest/download/Pace-linux-x64.tar.gz)
+## Usage and accounts
 
-```sh
-tar xzf Pace-linux-x64.tar.gz
-./Pace/install.sh            # installs to ~/.local; ./Pace/install.sh --uninstall removes it
-```
-
-x64 desktops with a StatusNotifier tray: KDE Plasma, or GNOME with the AppIndicator
-extension (included in Ubuntu). Requires the X11 libraries most desktops include
-(`libice6`, `libsm6`, `libfontconfig1`) and ICU. The panel opens on the panel edge
-where your desktop reserves space, beside the tray icon on X11 sessions and in that
-edge's corner on Wayland; hover summaries appear as the tray tooltip. Opening Pace
-from the applications menu while it runs shows its panel, which also works without a
-tray icon.
-
-Existing CLI sign-ins are detected automatically. Adding accounts requires the
-corresponding Claude or Codex CLI; sign-in opens in your browser. If no browser
-opens, **Copy link** copies the CLI's sign-in link to paste into one.
-
-## Screenshots
-
-Weekly overview, using sample accounts:
-
-![Weekly overview](docs/screenshots/overview.png)
+- **Mint:** below pace. **Blue:** on pace. **Orange:** above pace. **Gray:** unavailable or stale.
+- Pace compares usage with the elapsed portion of the week. On pace spans 4 percentage points below to 2 points above that baseline.
+- Click an account for weekly, session and model limits. Reset times are local; hover for a countdown.
+- Settings lets you rename, reorder or hide accounts, choose Claude's overview bars, and enable launch at sign-in. Removing an account keeps its sign-in files.
+- Usage refreshes every five minutes. Update checks run at launch and every six hours; automatic updates are optional on Windows. Linux updates are downloaded manually.
 
 <details>
-<summary>Account details, account management and tray hover</summary>
+<summary>More screenshots</summary>
 
 Account details:
 
-![Account details](docs/screenshots/account-details.png)
+![Claude account details](docs/screenshots/account-details.png)
 
-Manage accounts:
+Accounts:
 
-![Manage accounts](docs/screenshots/accounts.png)
+![Account management](docs/screenshots/accounts.png)
 
 Settings:
 
-![Settings](docs/screenshots/settings.png)
+![General settings](docs/screenshots/settings.png)
 
 Tray hover:
 
-![Tray hover](docs/screenshots/tray-hover.png)
+![Tray hover summary](docs/screenshots/tray-hover.png)
 
 </details>
 
-## Reading the display
+## Privacy
 
-Pace compares usage with the portion of the week elapsed since each account's reset.
-The tray icon shows up to four accounts:
-
-- Orange: more than 2 percentage points above pace.
-- Mint: more than 4 percentage points below pace.
-- Blue: within the -4 to +2 point range, inclusive.
-- Gray: usage is unavailable or stale.
-
-`+9% · 15h` means 9 percentage points above pace, or about 15 hours until the
-baseline catches up if usage stops. This is not a forecast. Provider rounding
-limits the precision of these numbers.
-
-Click an account for its available weekly, session and model-specific limits.
-Reset labels show local clock time, adding the weekday for another day; hover
-the account for the countdown. Banked resets appear beside the reset time;
-hover the badge for expiry dates.
-Orange indicates an expiry within seven days. Pace does not redeem resets.
-
-Account names, visibility and order save automatically. Removing an account stops
-monitoring it and keeps its sign-in files. Click away to dismiss the panel;
-right-click the tray icon to quit. Opening Pace again while it runs shows the panel.
-Sign-in can be cancelled while the browser is open and stops after ten minutes. Usage refreshes every five minutes and pace
-every minute.
-
-Claude account options include **5H bar** and **Fable bar** for the overview
-bars. Account details always show all available limits. An orange dot after an
-account name means a hidden limit is at least 90% used. Click the account for
-details. The dot clears when the bar is shown, usage falls below 90%, or the
-limit resets. It cannot be dismissed. Details and the tray icon have no dots.
-
-## Local data
-
-Settings and managed sign-ins are stored in `%APPDATA%/Pace` on Windows and
-`~/.config/Pace` on Linux. Data from the previous app name migrates automatically.
-Launch at sign-in uses a current-user startup entry on Windows and an XDG autostart
-entry (`~/.config/autostart/pace.desktop`) on Linux.
-
-## Settings
-
-The overview gear opens Settings, with General and Accounts tabs. General lets
-you choose reset clock times or time remaining, and enable or disable launching at
-sign-in. Accounts retains naming, ordering, sign-in and visibility controls.
-Tabs share a stable window size and footer, with room for three accounts;
-longer lists use a slim themed scrollbar when needed. The
-tray count and add-account actions live inside Accounts.
-
-Updates are checked at launch and every six hours against this repository's
-latest stable GitHub release. Check for updates runs a check immediately.
-An orange dot on Settings indicates an available update; Dismiss clears it for
-that version without removing the Update action. Automatic updates default off.
-When enabled, Pace downloads a verified Windows package and installs it on the
-next launch. Update installs immediately and restarts Pace. Packages must match
-the release checksum and version. The installer backs up replaced files and
-restores them if copying fails; settings and sign-ins remain outside the app.
-On Linux, Pace notifies about a new release and Download opens its release page;
-it does not replace its own files.
-
-Existing CLI sign-ins respect `CODEX_HOME` and `CLAUDE_CONFIG_DIR`. Tokens are read
-from local credential files and sent to the corresponding service. Official CLIs
-manage sign-in and renewal. Pace has no telemetry. An unexpected error writes only
-its exception type and stack trace to `error.log` in the Pace settings folder.
-Subscription endpoints are undocumented and may change.
+Credentials stay local and official CLIs manage sign-in and renewal. Tokens are sent only to the corresponding service. Pace has no telemetry. Settings and managed sign-ins live in `%APPDATA%/Pace` on Windows and `~/.config/Pace` on Linux. Subscription endpoints are undocumented and may change.
 
 <details>
 <summary>Development</summary>
 
-The desktop UI uses Avalonia, with one shared codebase. Platform differences (tray,
-startup, updates, CLI discovery) live in `Infrastructure`. Windows is verified; Linux
-passes the offline checks but needs validation on real desktops; macOS is not
-packaged. Requires the .NET 10 SDK. See
-[STYLEGUIDE.txt](STYLEGUIDE.txt) and [AGENTS.md](AGENTS.md) for theme ownership
-and contribution rules.
+Built with Avalonia and .NET 10. See [STYLEGUIDE.txt](STYLEGUIDE.txt), [AGENTS.md](AGENTS.md) and the [Linux test checklist](docs/linux-test-checklist.md).
 
 ```powershell
 dotnet build -c Release
-dotnet publish -c Release -r win-x64 --self-contained true -o dist/Pace
-.\bin\Release\net10.0\Pace.exe --self-test self-test.json
-.\bin\Release\net10.0\Pace.exe --render-preview preview.png
-powershell -File scripts/Publish-Linux.ps1   # dist/Pace-linux-x64.tar.gz
+.\bin\Release\net10.0\Pace.exe --self-test .local/self-test.json
+.\bin\Release\net10.0\Pace.exe --render-preview .local/overview.png
 ```
 
-Offline checks require an interactive desktop: Windows with Explorer, or a Linux
-X11/XWayland session. Preview mode
-uses sample accounts. `--live-check live-check.json` makes authenticated requests;
-its report stays local.
-
-Before publishing, stage source and required assets, then run
-`pwsh -File scripts/Verify-Repository.ps1`. Credentials, settings, environment files,
-local reports and builds are excluded from Git.
+Offline checks and previews require an interactive desktop. Previews use synthetic accounts. Before committing or publishing, inspect the index and run `pwsh -File scripts/Verify-Repository.ps1`.
 
 </details>
 
 ## Assets
 
-- [Lucide icons](https://github.com/lucide-icons/lucide/tree/main/icons): SVGs and
-  ISC/Feather MIT notices in `Assets/Icons`.
-- [Inter 4.1](https://github.com/rsms/inter/releases/tag/v4.1), by Rasmus Andersson:
-  Pace Sans is a renamed derivative with a centered tilde. The SIL Open Font
-  License and modification notice are in `Assets/Fonts`.
-
-Service icons retain the original provider artwork and sizes; attribution is in Assets/Icons/Service-marks.txt.
+- [Lucide icons](https://github.com/lucide-icons/lucide/tree/main/icons): ISC/Feather MIT notices in `Assets/Icons`.
+- [Inter 4.1](https://github.com/rsms/inter/releases/tag/v4.1), by Rasmus Andersson: Pace Sans is a renamed derivative; SIL Open Font License and modification notice in `Assets/Fonts`.
+- Original provider artwork: attribution in `Assets/Icons/Service-marks.txt`.

@@ -80,8 +80,11 @@ public sealed class UsagePanel : WidgetWindow
         }
         FitContent();
     }
+    // Rows invalidate only themselves when their content changes, so the list's cached size
+    // can be stale here; re-measure it so the window fits without a scrollbar.
     void FitContent()
     {
+        rows.InvalidateMeasure();
         rows.Measure(new Size(Width - 2 * UiMetrics.WindowBorderWidth, double.PositiveInfinity));
         Height = Math.Min(rows.DesiredSize.Height + UiMetrics.ToolbarHeight + 2 * UiMetrics.WindowBorderWidth, AvailableHeight);
         if (IsVisible)
@@ -93,8 +96,6 @@ public sealed class UsagePanel : WidgetWindow
     public void UpdateSignIn(bool pending, string message, string? link = null)
     {
         rows.Children.OfType<EmptyAccountsView>().FirstOrDefault()?.UpdateSignIn(pending, message, link);
-        // A status line changes the empty view's height; re-measure it before fitting.
-        rows.InvalidateMeasure();
         FitContent();
     }
     public void OpenNearTray(bool newSession = true)

@@ -33,7 +33,7 @@ internal sealed class TrayService : IDisposable
     }
     public void Update(List<Reading> readings, Settings? settings = null)
     {
-        var png = TrayDrawing.Png(readings, DesktopIntegration.TrayIconSize);
+        var png = TrayDrawing.Png(readings, DesktopIntegration.TrayIconSize, settings?.TrayFollowsAnyLimit ?? false);
         if (OperatingSystem.IsWindows()) windows?.Update(png);
         else if (portable != null)
         {

@@ -26,6 +26,22 @@ internal sealed class GeneralSettingsView : SectionList, IDisposable
         when.Click += (_, _) => { SelectTime(false); example.Text = Example(); Save(); };
         remaining.Click += (_, _) => { SelectTime(true); example.Text = Example(); Save(); };
         Children.Add(time);
+        var tray = new SettingsSection();
+        tray.Label("Tray color", true);
+        var weekly = Palette.Button("Weekly pace"); var any = Palette.Button("Any limit");
+        void SelectTray(bool anyLimit)
+        {
+            settings.TrayFollowsAnyLimit = anyLimit;
+            weekly.Selected = !anyLimit; any.Selected = anyLimit;
+            weekly.InvalidateVisual(); any.InvalidateVisual();
+        }
+        SelectTray(settings.TrayFollowsAnyLimit);
+        tray.Children.Add(new ButtonGroup(weekly, any));
+        string TrayExample() => settings.TrayFollowsAnyLimit ? "Shows the most pressing limit, such as five-hour" : "Shows weekly pace";
+        var trayExample = tray.Label(TrayExample());
+        weekly.Click += (_, _) => { SelectTray(false); trayExample.Text = TrayExample(); Save(); };
+        any.Click += (_, _) => { SelectTray(true); trayExample.Text = TrayExample(); Save(); };
+        Children.Add(tray);
         var startup = new SettingsSection();
         startup.Label("Startup", true);
         var launch = startup.Toggle("Launch at sign-in", StartupRegistration.Enabled);

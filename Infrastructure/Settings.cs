@@ -6,6 +6,8 @@ public sealed class Settings
 {
     public bool RelativeResetTime { get; set; }
     public bool AutomaticUpdates { get; set; }
+    // The tray color follows the most pressing limit instead of the weekly one.
+    public bool TrayFollowsAnyLimit { get; set; }
     public string? DismissedUpdateVersion { get; set; }
     public List<Preference> Accounts { get; set; } = [];
     public List<string> ExtraCredentialPaths { get; set; } = [];

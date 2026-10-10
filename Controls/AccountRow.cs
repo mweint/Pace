@@ -8,7 +8,12 @@ public sealed class AccountRow : PaintedPanel, IThemedSection
     Preference? preference;
     readonly ResetBadge resetBadge = new();
     bool separator;
-    public bool RelativeResetTime { get; set; }
+    bool relativeResetTime;
+    public bool RelativeResetTime
+    {
+        get => relativeResetTime;
+        set { if (relativeResetTime == value) return; relativeResetTime = value; UpdateReading(Reading, Alias); }
+    }
     public bool ShowSeparator { get => separator; set { separator = value; InvalidateVisual(); } }
     SectionGroup IThemedSection.Group => compactDetail ? SectionGroup.SecondaryLimits : SectionGroup.None;
     public event Action<Account>? Activated;
@@ -30,7 +35,8 @@ public sealed class AccountRow : PaintedPanel, IThemedSection
         if (preference != null) this.preference = preference;
         var now = DateTimeOffset.UtcNow;
         var tips = new List<string>();
-        if (reading.Weekly is { } window) tips.Add(PaceMath.ResetCountdown(window.Reset, now));
+        // The tooltip gives the reset in the form the row does not show.
+        if (reading.Weekly is { } window) tips.Add(RelativeResetTime ? PaceMath.ResetLabel(window.Reset, now) : PaceMath.ResetCountdown(window.Reset, now));
         resetBadge.UpdateBank(reading.Resets, reading.Error != null || reading.ResetError != null);
 
         if (reading.Error != null) tips.Add($"{reading.Account.Service} · {reading.Account.Label}\n{reading.Error}\nLast successful reading: {reading.Updated.ToLocalTime():g}");

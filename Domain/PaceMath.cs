@@ -6,6 +6,13 @@ public static class PaceMath
     public const double AboveThreshold = 2;
     public const double ExhaustedThreshold = 100;
     public static PaceState Classify(PaceGap? pace) => pace is null ? PaceState.Unavailable : pace.Points > AboveThreshold ? PaceState.Above : pace.Points < BelowThreshold ? PaceState.Below : PaceState.OnPace;
+    // The most pressing state across windows: exhausted, then ahead, on pace, below.
+    public static PaceState Strictest(IEnumerable<UsageWindow> windows, DateTimeOffset now) =>
+        windows.Select(w => Classify(w, now)).DefaultIfEmpty(PaceState.Unavailable).MaxBy(Urgency);
+    static int Urgency(PaceState state) => state switch
+    {
+        PaceState.Exhausted => 4, PaceState.Above => 3, PaceState.OnPace => 2, PaceState.Below => 1, _ => 0
+    };
     public static PaceState Classify(UsageWindow window, DateTimeOffset now)
     {
         var pace = Calculate(window, now);

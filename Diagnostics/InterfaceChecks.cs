@@ -113,10 +113,10 @@ internal static class InterfaceChecks
             "Footer caption uses the toolbar heading role and shared placement");
         accounts.SelectTab(true); await Task.Delay(40);
         var sections = descendants.OfType<SettingsSection>().ToList();
-        check(sections.Count == 3 && sections.All(s => s.Children.All(c => c.Bounds.Bottom <= s.Bounds.Height - UiMetrics.ContentInset + .5)),
+        check(sections.Count == 4 && sections.All(s => s.Children.All(c => c.Bounds.Bottom <= s.Bounds.Height - UiMetrics.ContentInset + .5)),
             "General sections contain their measured rows within the shared inset");
-        var buttons = descendants.OfType<FilledButton>().Where(b => b.Text is "When it resets" or "Time remaining" or "Check for updates" or "Update" or "Download" or "Dismiss").ToList();
-        check(buttons.Count == 5 && buttons.All(b => b.MinWidth == UiMetrics.TextButtonWidth(b.Text) && b.MinWidth > Palette.TextWidth(b.Text)),
+        var buttons = descendants.OfType<FilledButton>().Where(b => b.Text is "When it resets" or "Time remaining" or "Weekly pace" or "Any limit" or "Check for updates" or "Update" or "Download" or "Dismiss").ToList();
+        check(buttons.Count == 7 && buttons.All(b => b.MinWidth == UiMetrics.TextButtonWidth(b.Text) && b.MinWidth > Palette.TextWidth(b.Text)),
             "Filled buttons size to their measured text plus shared padding");
         var icon = descendants.OfType<IconButton>().First(b => b.Kind == "back");
         icon.Focus(NavigationMethod.Pointer);

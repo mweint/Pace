@@ -17,7 +17,8 @@ public static class Palette
     public static readonly Color Text = Color.FromRgb(238, 241, 246);
     public static readonly Color Muted = Color.FromRgb(154, 164, 180);
     public static readonly Color Above = Color.FromRgb(255, 161, 104), Below = Color.FromRgb(111, 210, 178), OnPace = Color.FromRgb(154, 193, 255);
-    public static readonly Color TrayOnPace = Color.FromRgb(79, 166, 255);
+    // Tray bars are a few pixels tall, so their green and blue sit further apart than the panel's.
+    public static readonly Color TrayOnPace = Color.FromRgb(70, 150, 255), TrayBelow = Color.FromRgb(104, 218, 150);
     public static readonly Color Footer = Color.FromRgb(26, 30, 37), Action = Color.FromRgb(40, 46, 57);
     public static readonly Color InputBorder = Color.FromRgb(51, 58, 70), WindowBorder = Color.FromRgb(61, 69, 83);
     public static readonly Color InputHoverBorder = Color.FromRgb(88, 98, 114);

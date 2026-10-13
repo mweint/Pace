@@ -2,10 +2,15 @@ namespace Pace;
 
 public static class PaceMath
 {
-    public const double BelowThreshold = -4;
-    public const double AboveThreshold = 2;
+    // At or below the marker, the normal rate lasts until the reset. Slightly ahead is on pace;
+    // ahead means slowing down by more than AheadSlowdown for the rest of the window, and never
+    // less than AheadFloor points, so the last stretch before a reset does not flicker.
+    public const double AheadSlowdown = .05, AheadFloor = 2;
     public const double ExhaustedThreshold = 100;
-    public static PaceState Classify(PaceGap? pace) => pace is null ? PaceState.Unavailable : pace.Points > AboveThreshold ? PaceState.Above : pace.Points < BelowThreshold ? PaceState.Below : PaceState.OnPace;
+    public static double AheadThreshold(PaceGap pace) => Math.Max(AheadFloor, AheadSlowdown * (100 - pace.Expected));
+    public static PaceState Classify(PaceGap? pace) => pace is null ? PaceState.Unavailable
+        : pace.Points > AheadThreshold(pace) ? PaceState.Above : pace.Points <= 0 ? PaceState.Below : PaceState.OnPace;
+    static bool Level(PaceGap p) => Math.Round(p.Points) == 0;
     // The most pressing state across windows: exhausted, then ahead, on pace, below.
     public static PaceState Strictest(IEnumerable<UsageWindow> windows, DateTimeOffset now) =>
         windows.Select(w => Classify(w, now)).DefaultIfEmpty(PaceState.Unavailable).MaxBy(Urgency);
@@ -41,8 +46,8 @@ public static class PaceMath
         return new(expected, points, ahead);
     }
 
-    public static string Summary(PaceGap? p) => p is null ? "Pace unavailable" : Classify(p) == PaceState.OnPace ? "On pace" : $"{Math.Abs(p.Points):0}% {(p.Points > 0 ? "above" : "below")} pace";
-    public static string Compact(PaceGap? p) => p is null ? "—" : Classify(p) == PaceState.OnPace ? "on pace" : $"{Math.Abs(p.Points):0}% {(p.Points > 0 ? "above" : "below")}";
+    public static string Summary(PaceGap? p) => p is null ? "Pace unavailable" : Level(p) ? "On pace" : $"{Math.Abs(p.Points):0}% {(p.Points > 0 ? "above" : "below")} pace";
+    public static string Compact(PaceGap? p) => p is null ? "—" : Level(p) ? "on pace" : $"{Math.Abs(p.Points):0}% {(p.Points > 0 ? "above" : "below")}";
     public static string? AheadHours(PaceGap? pace) => Classify(pace) == PaceState.Above && pace?.Ahead is { } ahead ? $"{ahead.TotalHours:0}h" : null;
     public static string? AheadLabel(PaceGap? pace) => AheadHours(pace) is { } hours ? $"~{hours} ahead" : null;
     public static string HoverSummary(PaceGap? pace) => pace is null ? "Unavailable" : $"{pace.Points:+0;-0;0}%" + (AheadHours(pace) is { } hours ? $" · {hours}" : "");

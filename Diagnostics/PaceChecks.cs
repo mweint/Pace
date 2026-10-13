@@ -14,15 +14,21 @@ internal static class PaceChecks
         Check(PaceMath.Compact(p) == "7% above" && PaceMath.Compact(other) == "18% below", "Compact percent labels preserve the baseline difference");
         Check(Math.Abs(p.Ahead!.Value.TotalHours - 11.76) < .0001, "Ahead hours measure the current gap on the seven-day baseline");
         Check(other.Ahead == null, "Below pace does not show hours ahead");
-        var lowerEdge = PaceMath.Calculate(new(46, now.AddDays(3.5), TimeSpan.FromDays(7)), now)!;
-        var upperEdge = PaceMath.Calculate(new(52, now.AddDays(3.5), TimeSpan.FromDays(7)), now)!;
-        var justBelow = PaceMath.Calculate(new(45.9, now.AddDays(3.5), TimeSpan.FromDays(7)), now)!;
-        var justAbove = PaceMath.Calculate(new(52.1, now.AddDays(3.5), TimeSpan.FromDays(7)), now)!;
-        Check(PaceMath.Compact(lowerEdge) == "on pace" && PaceMath.Compact(upperEdge) == "on pace", "Negative four and positive two are inclusive on-pace boundaries");
-        Check(PaceMath.Compact(justBelow) == "4% below" && PaceMath.Compact(justAbove) == "2% above", "Values outside the asymmetric band show below or above");
-        Check(Palette.Status(lowerEdge) == Palette.OnPace && Palette.Status(upperEdge) == Palette.OnPace && Palette.Status(justBelow) == Palette.Below && Palette.Status(justAbove) == Palette.Above, "Text and colors agree at both asymmetric boundaries");
-        Check(PaceMath.AheadLabel(upperEdge) == null && PaceMath.AheadLabel(justAbove) == "~4h ahead", "Approximate ahead hours appear only when usage exceeds the upper tolerance");
-        Check(PaceMath.HoverSummary(p) == "+7% · 12h" && PaceMath.HoverSummary(other) == "-18%" && PaceMath.HoverSummary(upperEdge) == "+2%", "Hover adds whole hours only above pace, without an ahead suffix");
+        // Halfway through a week, ahead begins past max(2, 5% of the remaining 50) = 2.5 points.
+        var marker = PaceMath.Calculate(new(50, now.AddDays(3.5), TimeSpan.FromDays(7)), now)!;
+        var slightly = PaceMath.Calculate(new(52, now.AddDays(3.5), TimeSpan.FromDays(7)), now)!;
+        var upperEdge = PaceMath.Calculate(new(52.5, now.AddDays(3.5), TimeSpan.FromDays(7)), now)!;
+        var justAbove = PaceMath.Calculate(new(52.6, now.AddDays(3.5), TimeSpan.FromDays(7)), now)!;
+        Check(PaceMath.Classify(marker) == PaceState.Below && PaceMath.Compact(marker) == "on pace", "Usage at the marker is green and reads on pace");
+        Check(PaceMath.Classify(slightly) == PaceState.OnPace && PaceMath.Classify(upperEdge) == PaceState.OnPace && PaceMath.Classify(justAbove) == PaceState.Above,
+            "Ahead begins past the larger of the floor and the slowdown share of the remaining window");
+        var fresh = PaceMath.Calculate(new(4.9, now.AddDays(7), TimeSpan.FromDays(7)), now)!;
+        var late = PaceMath.Calculate(new(92.1, now.AddDays(.7), TimeSpan.FromDays(7)), now)!;
+        Check(PaceMath.Classify(fresh) == PaceState.OnPace && PaceMath.Classify(late) == PaceState.Above, "The ahead threshold is wider after a reset and floors near the next one");
+        Check(PaceMath.Compact(slightly) == "2% above" && PaceMath.Compact(justAbove) == "3% above", "Values off the marker show above or below");
+        Check(Palette.Status(marker) == Palette.Below && Palette.Status(slightly) == Palette.OnPace && Palette.Status(justAbove) == Palette.Above, "Text and colors agree at the boundaries");
+        Check(PaceMath.AheadLabel(upperEdge) == null && PaceMath.AheadLabel(justAbove) == "~4h ahead", "Approximate ahead hours appear only when usage is ahead");
+        Check(PaceMath.HoverSummary(p) == "+7% · 12h" && PaceMath.HoverSummary(other) == "-18%" && PaceMath.HoverSummary(slightly) == "+2%", "Hover adds whole hours only above pace, without an ahead suffix");
         Check(PaceMath.Calculate(new(50, now, TimeSpan.FromDays(7)), now) == null, "Expired windows have no current pace");
         Check(PaceMath.Calculate(new(50, now.AddDays(8), TimeSpan.FromDays(7)), now) == null, "Future-start windows have no current pace");
         var exhausted = new UsageWindow(100, now.AddMinutes(4), TimeSpan.FromHours(5));

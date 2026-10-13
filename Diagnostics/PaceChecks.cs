@@ -31,6 +31,8 @@ internal static class PaceChecks
         Check(PaceMath.HoverSummary(p) == "+7% · 12h" && PaceMath.HoverSummary(other) == "-18%" && PaceMath.HoverSummary(slightly) == "+2%", "Hover adds whole hours only above pace, without an ahead suffix");
         Check(PaceMath.Calculate(new(50, now, TimeSpan.FromDays(7)), now) == null, "Expired windows have no current pace");
         Check(PaceMath.Calculate(new(50, now.AddDays(8), TimeSpan.FromDays(7)), now) == null, "Future-start windows have no current pace");
+        Check(PaceMath.Classify(new UsageWindow(0, now.AddDays(7).AddSeconds(1), TimeSpan.FromDays(7)), now) == PaceState.Below,
+            "An unused window starting a moment ahead of the local clock counts as just started");
         var exhausted = new UsageWindow(100, now.AddMinutes(4), TimeSpan.FromHours(5));
         Check(PaceMath.Classify(PaceMath.Calculate(exhausted, now)) == PaceState.OnPace &&
             PaceMath.Classify(exhausted, now) == PaceState.Exhausted &&

@@ -7,6 +7,7 @@ public static class PaceMath
     // less than AheadFloor points, so the last stretch before a reset does not flicker.
     public const double AheadSlowdown = .05, AheadFloor = 2;
     public const double ExhaustedThreshold = 100;
+    static readonly TimeSpan StartTolerance = TimeSpan.FromMinutes(10);
     public static double AheadThreshold(PaceGap pace) => Math.Max(AheadFloor, AheadSlowdown * (100 - pace.Expected));
     public static PaceState Classify(PaceGap? pace) => pace is null ? PaceState.Unavailable
         : pace.Points > AheadThreshold(pace) ? PaceState.Above : pace.Points <= 0 ? PaceState.Below : PaceState.OnPace;
@@ -37,7 +38,9 @@ public static class PaceMath
         if (!double.IsFinite(w.Used) || w.Period <= TimeSpan.Zero || w.Reset is not { } reset || now >= reset)
             return null;
         var elapsed = now - (reset - w.Period);
-        if (elapsed < TimeSpan.Zero)
+        // An unused window reports a fresh full period on every request, so its start can sit a
+        // moment ahead of this clock; treat that as just started rather than unavailable.
+        if (elapsed < -StartTolerance)
             return null;
         double fraction = Math.Clamp(elapsed.TotalSeconds / w.Period.TotalSeconds, 0, 1);
         double expected = fraction * 100;

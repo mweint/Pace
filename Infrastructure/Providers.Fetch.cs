@@ -15,6 +15,7 @@ public static partial class Providers
     static readonly HttpClient Client = new(new HttpClientHandler { AllowAutoRedirect = false }) { Timeout = TimeSpan.FromSeconds(20) };
     static readonly Dictionary<string, DateTimeOffset> Cooldowns = LoadCooldowns();
     static readonly Dictionary<string, int> RateLimitStreaks = [];
+    static readonly Dictionary<string, DateTimeOffset> RenewalAttempts = [];
     static string CooldownFile => Path.Combine(Settings.DirectoryPath, "retry-times.json");
 
     public static async Task<Reading> Fetch(Account account)
@@ -26,6 +27,8 @@ public static partial class Providers
             return Failed("Sign-in is missing or unreadable. Reconnect in Accounts.", ConnectionIssue.CredentialsMissing);
         if (login.Account.Key != account.Key)
             return Failed("A different account is signed in. Reconnect in Accounts.", ConnectionIssue.AccountChanged);
+        if (login.Expires <= now && (login = await Renew(account, now)) == null)
+            return Failed("Sign-in expired. Reconnect in Accounts.", ConnectionIssue.SignInExpired);
         if (Cooldowns.TryGetValue(account.Key, out var eligible) && now < eligible)
             return Failed($"Retry in {PaceMath.Duration(eligible - now)} (service rate limit)", rateLimited: true);
         bool claude = account.Service == Services.Claude;
@@ -87,6 +90,26 @@ public static partial class Providers
         {
             return (summary, "Reset expiry dates could not be refreshed");
         }
+    }
+
+    // Claude Code renews an expired saved sign-in when asked for its status; Pace never refreshes
+    // tokens itself. The service answers an expired token with 429, so waits recorded while it was
+    // expired are dropped once it is renewed.
+    static async Task<Login?> Renew(Account account, DateTimeOffset now)
+    {
+        if (RenewalAttempts.TryGetValue(account.Key, out var last) && now - last < TimeSpan.FromMilliseconds(AppTiming.SignInRenewalRetryMilliseconds))
+            return null;
+        RenewalAttempts[account.Key] = now;
+        if (!await SignIn.Renew(account.CredentialPath))
+            return null;
+        var login = await Task.Run(() => ReadLogin(account.CredentialPath));
+        if (login == null || login.Account.Key != account.Key || login.Expires <= DateTimeOffset.UtcNow)
+            return null;
+        RenewalAttempts.Remove(account.Key);
+        RateLimitStreaks.Remove(account.Key);
+        if (Cooldowns.Remove(account.Key))
+            SaveCooldowns();
+        return login;
     }
 
     static Login? ReadLogin(string file)

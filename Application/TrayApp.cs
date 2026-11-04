@@ -145,7 +145,7 @@ public sealed class TrayApp : IDisposable
     {
         var accounts = await Providers.Discover(settings);
         if (exiting) return;
-        readings = accounts.Select(a => readings.FirstOrDefault(r => r.Account.Key == a.Key) ?? new Reading(a, null, "Refreshing…", DateTimeOffset.UtcNow)).ToList();
+        readings = accounts.Select(a => readings.FirstOrDefault(r => r.Account.Key == a.Key) ?? new Reading(a, null, Reading.RefreshingMessage, DateTimeOffset.UtcNow)).ToList();
         Render();
         foreach (var account in accounts)
         {

@@ -155,7 +155,7 @@ public sealed class AccountsDialog : PageDialog
             AccountList.Children.Clear(); readings.Clear();
             foreach (var account in accounts)
             {
-                var reading = new Reading(account, null, "Refreshing…", DateTimeOffset.UtcNow);
+                var reading = new Reading(account, null, Reading.RefreshingMessage, DateTimeOffset.UtcNow);
                 readings.Add(reading); AddAccount(reading);
             }
             if (readings.Count == 0) AddEmpty();

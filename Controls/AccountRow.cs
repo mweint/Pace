@@ -66,7 +66,7 @@ public sealed class AccountRow : PaintedPanel, IThemedSection
     (FormattedText Reset, FormattedText? Status) Metadata(UsageWindow window, AccountRowLayout layout, DateTimeOffset now)
     {
         string? label = StatusLabel(window, now);
-        var status = label == null ? null : Palette.Format(label, Reading.Error == null ? Palette.Status(window, now) : Palette.Muted);
+        var status = label == null ? null : Palette.Format(label, Reading.Error == null ? Palette.Status(window, now) : Palette.Warning);
         bool hasBank = Reading.Resets is { } bank && bank.Available(now) > 0;
         double reserved = UiMetrics.TextInset + (status == null ? 0 : Math.Ceiling(status.Width) + UiMetrics.CardGap) + (hasBank ? UiMetrics.ResetBadgeWidth + UiMetrics.InlineGap : 0);
         string reset = RelativeResetTime ? PaceMath.ResetCountdown(window.Reset, now) : PaceMath.ResetLabel(window.Reset, now);
@@ -100,7 +100,7 @@ public sealed class AccountRow : PaintedPanel, IThemedSection
         if (warning) context.DrawEllipse(Palette.Brush(Palette.Warning), null, new Point(titleX + title.Width + UiMetrics.InlineGap + UiMetrics.WarningDotSize / 2d, header.Center.Y), UiMetrics.WarningDotSize / 2d, UiMetrics.WarningDotSize / 2d);
         if (w == null)
         {
-            var error = Palette.Format(Reading.Error ?? "Refreshing…", Palette.Muted);
+            var error = Palette.Format(Reading.Error ?? Reading.RefreshingMessage, Reading.HasProblem ? Palette.Warning : Palette.Muted);
             error.MaxTextWidth = layout.Error.Width;
             error.MaxLineCount = 2;
             error.Trimming = TextTrimming.CharacterEllipsis;
@@ -115,6 +115,7 @@ public sealed class AccountRow : PaintedPanel, IThemedSection
     }
     static double Centered(Rect area, FormattedText text) => Math.Round(area.Top + (area.Height - text.Height) / 2);
     string? StatusLabel(UsageWindow window, DateTimeOffset now) => Reading.Error != null
-        ? Reading.RateLimited ? "Stale · rate limited" : "Stale · hover for details"
+        ? Reading.NeedsReconnect ? "Stale · " + Reading.ConnectionReason.ToLowerInvariant()
+        : Reading.RateLimited ? "Stale · rate limited" : "Stale · hover for details"
         : PaceMath.Classify(window, now) != PaceState.Exhausted ? PaceMath.AheadLabel(PaceMath.Calculate(window, now)) : null;
 }

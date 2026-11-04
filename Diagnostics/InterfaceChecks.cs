@@ -243,7 +243,7 @@ internal static class InterfaceChecks
         var fresh = new UsagePanel { PreviewMode = true };
         var growing = new UsagePanel { PreviewMode = true };
         fresh.UpdateRows(demo.Take(3).ToList(), new Settings(), false);
-        growing.UpdateRows(demo.Take(3).Select(r => new Reading(r.Account, null, "Refreshing…", DateTimeOffset.UtcNow)).ToList(), new Settings(), true);
+        growing.UpdateRows(demo.Take(3).Select(r => new Reading(r.Account, null, Reading.RefreshingMessage, DateTimeOffset.UtcNow)).ToList(), new Settings(), true);
         growing.UpdateRows(demo.Take(3).ToList(), new Settings(), false);
         check(growing.Height == fresh.Height, $"The overview grows to fit rows whose readings arrive after opening ({growing.Height} vs {fresh.Height})");
         fresh.Shutdown(); growing.Shutdown();

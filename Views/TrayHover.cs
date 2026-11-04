@@ -42,7 +42,7 @@ public sealed class TrayHover : WidgetWindow
                 ServiceMark.Draw(context, reading.Account.Service, new Point(UiMetrics.HoverInset, y), TopLevel.GetTopLevel(this)?.RenderScaling ?? 1);
                 var now = DateTimeOffset.UtcNow;
                 var value = Palette.Format(PaceMath.HoverSummary(reading, now),
-                    reading.Weekly is { } weekly && reading.Error == null ? Palette.Status(weekly, now) : Palette.Muted);
+                    reading.Weekly is { } weekly && reading.Error == null ? Palette.Status(weekly, now) : reading.HasProblem ? Palette.Warning : Palette.Muted);
                 double valueWidth = Math.Ceiling(value.Width) + UiMetrics.InlineGap;
                 double valueLeft = Bounds.Width - UiMetrics.HoverInset - valueWidth, nameLeft = UiMetrics.HoverInset + UiMetrics.ServiceIconSize + UiMetrics.CardGap;
                 var title = Palette.Line(name, Palette.Text, valueLeft - nameLeft - UiMetrics.TextInset - UiMetrics.CardGap, Palette.AccountSize, true);

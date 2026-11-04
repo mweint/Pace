@@ -13,4 +13,6 @@ internal static class AppTiming
     // Browser sign-in, with time to create an account or pass a two-factor check.
     public const int SignInTimeoutMilliseconds = 10 * 60 * 1000;
     public const int SignInStopGraceMilliseconds = 3000, SignInOutputGraceMilliseconds = 2000;
+    // An expired saved sign-in is renewed through the official CLI, retried at most this often.
+    public const int SignInRenewalTimeoutMilliseconds = 30_000, SignInRenewalRetryMilliseconds = 10 * 60 * 1000;
 }

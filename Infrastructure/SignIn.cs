@@ -7,6 +7,7 @@ namespace Pace;
 public static class SignIn
 {
     static readonly string[] ClaudeLogin = ["auth", "login", "--claudeai"];
+    static readonly string[] ClaudeStatus = ["auth", "status"];
     static readonly string[] CodexLogin = ["-c", "cli_auth_credentials_store=\"file\"", "login"];
     static readonly string[] ClaudeTokenVariables = ["ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN", "CLAUDE_CODE_OAUTH_REFRESH_TOKEN"];
     static readonly string[] CodexTokenVariables = ["OPENAI_API_KEY", "CODEX_API_KEY"];
@@ -26,26 +27,7 @@ public static class SignIn
         if (!settings.ExtraCredentialPaths.Contains(file, StringComparer.OrdinalIgnoreCase))
             settings.ExtraCredentialPaths.Add(file);
         settings.Save();
-        var start = new ProcessStartInfo(OperatingSystem.IsWindows() ? "powershell.exe" : executable)
-        {
-            UseShellExecute = false,
-            CreateNoWindow = true,
-            WindowStyle = ProcessWindowStyle.Hidden,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true
-        };
-        if (OperatingSystem.IsWindows())
-        {
-            start.ArgumentList.Add("-NoProfile");
-            start.ArgumentList.Add("-NonInteractive");
-            start.ArgumentList.Add("-Command");
-            // Literal paths: apostrophes are doubled, with no interpolation of user input.
-            string literal = "'" + executable.Replace("'", "''") + "'";
-            start.ArgumentList.Add($"$ErrorActionPreference = 'Stop'; & {literal} {LoginArguments(service)}; exit $LASTEXITCODE");
-        }
-        else
-            foreach (string argument in service == Services.Claude ? ClaudeLogin : CodexLogin)
-                start.ArgumentList.Add(argument);
+        var start = Command(executable, service == Services.Claude ? ClaudeLogin : CodexLogin, LoginArguments(service));
         start.Environment[service == Services.Claude ? "CLAUDE_CONFIG_DIR" : "CODEX_HOME"] = folder;
         // This login is for a subscription, not an inherited API-key or managed-token session.
         foreach (string variable in service == Services.Claude ? ClaudeTokenVariables : CodexTokenVariables)
@@ -62,6 +44,55 @@ public static class SignIn
             Discard(settings, folder, file);
             throw;
         }
+    }
+
+    // Asking Claude Code for its status renews an expired saved sign-in. Its output is discarded.
+    public static async Task<bool> Renew(string credentialFile)
+    {
+        if (ClientDiscovery.Find(Services.Claude) is not { } executable)
+            return false;
+        var start = Command(executable, ClaudeStatus, "auth status");
+        // The default folder keeps Claude Code's own settings location; other folders are named.
+        string folder = Path.GetFullPath(Path.GetDirectoryName(credentialFile)!).TrimEnd(Path.DirectorySeparatorChar);
+        if (!folder.Equals(Path.GetFullPath(Providers.DefaultClaudeFolder).TrimEnd(Path.DirectorySeparatorChar), StringComparison.OrdinalIgnoreCase))
+            start.Environment["CLAUDE_CONFIG_DIR"] = folder;
+        foreach (string variable in ClaudeTokenVariables)
+            start.Environment.Remove(variable);
+        using var limit = new CancellationTokenSource(AppTiming.SignInRenewalTimeoutMilliseconds);
+        try
+        {
+            await Run(start, null, limit.Token);
+            return true;
+        }
+        catch (Exception e) when (e is InvalidOperationException or OperationCanceledException or System.ComponentModel.Win32Exception)
+        {
+            return false;
+        }
+    }
+
+    static ProcessStartInfo Command(string executable, string[] arguments, string shellArguments)
+    {
+        var start = new ProcessStartInfo(OperatingSystem.IsWindows() ? "powershell.exe" : executable)
+        {
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            WindowStyle = ProcessWindowStyle.Hidden,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true
+        };
+        if (OperatingSystem.IsWindows())
+        {
+            start.ArgumentList.Add("-NoProfile");
+            start.ArgumentList.Add("-NonInteractive");
+            start.ArgumentList.Add("-Command");
+            // Literal paths: apostrophes are doubled, with no interpolation of user input.
+            string literal = "'" + executable.Replace("'", "''") + "'";
+            start.ArgumentList.Add($"$ErrorActionPreference = 'Stop'; & {literal} {shellArguments}; exit $LASTEXITCODE");
+        }
+        else
+            foreach (string argument in arguments)
+                start.ArgumentList.Add(argument);
+        return start;
     }
 
     // An unfinished new sign-in leaves no account folder or credential path behind.

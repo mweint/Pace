@@ -7,7 +7,7 @@ public static partial class Providers
 {
     const long CredentialFileLimit = 64 * 1024, ClaudeMetadataLimit = 20 * 1024 * 1024;
 
-    sealed record Login(Account Account, string Access, string? Workspace);
+    sealed record Login(Account Account, string Access, string? Workspace, DateTimeOffset? Expires = null);
 
     // File scanning runs off the UI thread; settings are only touched on the caller's thread.
     public static async Task<List<Account>> Discover(Settings settings)
@@ -61,12 +61,15 @@ public static partial class Providers
         return accounts;
     }
 
+    internal static string DefaultClaudeFolder => Environment.GetEnvironmentVariable("CLAUDE_CONFIG_DIR")
+        ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".claude");
+
     // Default client folders, then auth files in dot-folders of home and ~/.config.
     static IEnumerable<string> CredentialLocations()
     {
         string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         yield return Path.Combine(Environment.GetEnvironmentVariable("CODEX_HOME") ?? Path.Combine(home, ".codex"), "auth.json");
-        yield return Path.Combine(Environment.GetEnvironmentVariable("CLAUDE_CONFIG_DIR") ?? Path.Combine(home, ".claude"), ".credentials.json");
+        yield return Path.Combine(DefaultClaudeFolder, ".credentials.json");
         foreach (string parent in new[] { home, Path.Combine(home, ".config") })
         {
             string[] folders;
@@ -122,9 +125,12 @@ public static partial class Providers
 
     static Login? OpenClaudeLogin(string file, JsonObject document)
     {
-        string? access = Text(document["claudeAiOauth"]?["accessToken"]);
+        var credentials = document["claudeAiOauth"];
+        string? access = Text(credentials?["accessToken"]);
         if (string.IsNullOrEmpty(access))
             return null;
+        DateTimeOffset? expires = credentials?["expiresAt"] is JsonValue value && value.TryGetValue<long>(out long milliseconds)
+            ? DateTimeOffset.FromUnixTimeMilliseconds(milliseconds) : null;
         // Account identity lives beside the credentials, or in ~/.claude.json for the default folder.
         string directory = Path.GetDirectoryName(file)!;
         string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
@@ -141,7 +147,7 @@ public static partial class Providers
         }
         string key = Text(identity?["accountUuid"]) ?? file;
         string label = Text(identity?["emailAddress"]) ?? Path.GetFileName(directory);
-        return new(new Account("claude:" + key, Services.Claude, label, file), access, null);
+        return new(new Account("claude:" + key, Services.Claude, label, file), access, null, expires);
     }
 
     static JsonObject? DecodeIdentity(string? jwt)

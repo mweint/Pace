@@ -7,7 +7,7 @@ namespace Pace;
 public static class SignIn
 {
     static readonly string[] ClaudeLogin = ["auth", "login", "--claudeai"];
-    static readonly string[] ClaudeStatus = ["auth", "status"];
+    static readonly string[] ClaudeDoctor = ["doctor"];
     static readonly string[] CodexLogin = ["-c", "cli_auth_credentials_store=\"file\"", "login"];
     static readonly string[] ClaudeTokenVariables = ["ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN", "CLAUDE_CODE_OAUTH_REFRESH_TOKEN"];
     static readonly string[] CodexTokenVariables = ["OPENAI_API_KEY", "CODEX_API_KEY"];
@@ -46,12 +46,14 @@ public static class SignIn
         }
     }
 
-    // Asking Claude Code for its status renews an expired saved sign-in. Its output is discarded.
-    public static async Task<bool> Renew(string credentialFile)
+    // Claude Code's doctor check renews an expired saved sign-in without a request that counts as
+    // usage; `claude auth status` only reads it. Its output is discarded and its exit code reports
+    // installation health, so the caller reads the saved sign-in again to see whether it was renewed.
+    public static async Task Renew(string credentialFile)
     {
         if (ClientDiscovery.Find(Services.Claude) is not { } executable)
-            return false;
-        var start = Command(executable, ClaudeStatus, "auth status");
+            return;
+        var start = Command(executable, ClaudeDoctor, "doctor");
         // The default folder keeps Claude Code's own settings location; other folders are named.
         string folder = Path.GetFullPath(Path.GetDirectoryName(credentialFile)!).TrimEnd(Path.DirectorySeparatorChar);
         if (!folder.Equals(Path.GetFullPath(Providers.DefaultClaudeFolder).TrimEnd(Path.DirectorySeparatorChar), StringComparison.OrdinalIgnoreCase))
@@ -62,11 +64,10 @@ public static class SignIn
         try
         {
             await Run(start, null, limit.Token);
-            return true;
         }
         catch (Exception e) when (e is InvalidOperationException or OperationCanceledException or System.ComponentModel.Win32Exception)
         {
-            return false;
+            // An unrenewed sign-in is reported by the caller.
         }
     }
 

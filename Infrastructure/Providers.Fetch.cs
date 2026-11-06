@@ -92,7 +92,7 @@ public static partial class Providers
         }
     }
 
-    // Claude Code renews an expired saved sign-in when asked for its status; Pace never refreshes
+    // Claude Code renews an expired saved sign-in when its doctor check runs; Pace never refreshes
     // tokens itself. The service answers an expired token with 429, so waits recorded while it was
     // expired are dropped once it is renewed.
     static async Task<Login?> Renew(Account account, DateTimeOffset now)
@@ -100,8 +100,7 @@ public static partial class Providers
         if (RenewalAttempts.TryGetValue(account.Key, out var last) && now - last < TimeSpan.FromMilliseconds(AppTiming.SignInRenewalRetryMilliseconds))
             return null;
         RenewalAttempts[account.Key] = now;
-        if (!await SignIn.Renew(account.CredentialPath))
-            return null;
+        await SignIn.Renew(account.CredentialPath);
         var login = await Task.Run(() => ReadLogin(account.CredentialPath));
         if (login == null || login.Account.Key != account.Key || login.Expires <= DateTimeOffset.UtcNow)
             return null;

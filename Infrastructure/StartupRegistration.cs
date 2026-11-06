@@ -2,16 +2,19 @@ using Microsoft.Win32;
 
 namespace Pace;
 
-// Windows uses the per-user Run key; Linux desktops use an XDG autostart entry.
+// Windows uses the per-user Run key; Linux desktops use an XDG autostart entry; macOS uses a
+// per-user launch agent.
 internal static class StartupRegistration
 {
     const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
     const string ApprovalKey = @"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run";
-    public static bool Supported => OperatingSystem.IsWindows() || OperatingSystem.IsLinux();
+    internal const string LaunchAgentLabel = "io.github.mweint.pace";
+    public static bool Supported => OperatingSystem.IsWindows() || OperatingSystem.IsLinux() || OperatingSystem.IsMacOS();
     public static bool Enabled
     {
         get
         {
+            if (OperatingSystem.IsMacOS()) return LaunchAgentEnabled();
             if (OperatingSystem.IsLinux()) return AutostartEnabled();
             if (!OperatingSystem.IsWindows()) return false;
             using var run = Registry.CurrentUser.OpenSubKey(RunKey);
@@ -21,6 +24,7 @@ internal static class StartupRegistration
         }
         set
         {
+            if (OperatingSystem.IsMacOS()) { SetLaunchAgent(value); return; }
             if (OperatingSystem.IsLinux()) { SetAutostart(value); return; }
             if (!OperatingSystem.IsWindows()) throw new PlatformNotSupportedException("Startup integration has not been ported to this desktop yet.");
             using var run = Registry.CurrentUser.CreateSubKey(RunKey);
@@ -61,6 +65,34 @@ internal static class StartupRegistration
             return lines.Contains("Exec=" + ExecLine(Executable)) && !lines.Contains("Hidden=true") && !lines.Contains("X-GNOME-Autostart-enabled=false");
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return false; }
+    }
+
+    internal static string LaunchAgentFile =>
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Library", "LaunchAgents", LaunchAgentLabel + ".plist");
+    // launchd starts the app's executable inside its bundle once per graphical login.
+    internal static string LaunchAgent(string path) => string.Join('\n',
+        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>",
+        "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">",
+        "<plist version=\"1.0\">", "<dict>",
+        "    <key>Label</key>", $"    <string>{LaunchAgentLabel}</string>",
+        "    <key>ProgramArguments</key>", "    <array>", $"        <string>{System.Security.SecurityElement.Escape(path)}</string>", "    </array>",
+        "    <key>RunAtLoad</key>", "    <true/>",
+        "    <key>LimitLoadToSessionType</key>", "    <string>Aqua</string>",
+        "    <key>ProcessType</key>", "    <string>Interactive</string>",
+        "</dict>", "</plist>", "");
+
+    static bool LaunchAgentEnabled()
+    {
+        try { return File.ReadAllText(LaunchAgentFile) == LaunchAgent(Environment.ProcessPath!); }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return false; }
+    }
+
+    static void SetLaunchAgent(bool enabled)
+    {
+        string file = LaunchAgentFile;
+        if (!enabled) { File.Delete(file); return; }
+        Directory.CreateDirectory(Path.GetDirectoryName(file)!);
+        File.WriteAllText(file, LaunchAgent(Environment.ProcessPath!));
     }
 
     static void SetAutostart(bool enabled)

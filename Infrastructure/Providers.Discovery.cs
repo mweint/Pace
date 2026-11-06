@@ -50,7 +50,7 @@ public static partial class Providers
             try
             {
                 string file = Path.GetFullPath(location);
-                if (File.Exists(file) && OpenLogin(file) is { } login)
+                if (MayHoldLogin(file) && OpenLogin(file) is { } login)
                     accounts.Add(login.Account);
             }
             catch (Exception e) when (IsUnreadable(e))
@@ -63,6 +63,24 @@ public static partial class Providers
 
     internal static string DefaultClaudeFolder => Environment.GetEnvironmentVariable("CLAUDE_CONFIG_DIR")
         ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".claude");
+
+    // The CLAUDE_CONFIG_DIR value Pace launches Claude Code with for a folder: none for the
+    // default folder, which keeps Claude Code's own settings location, otherwise its full path.
+    internal static string? ClaudeFolderVariable(string folder)
+    {
+        string full = Path.GetFullPath(folder).TrimEnd(Path.DirectorySeparatorChar);
+        return full.Equals(Path.GetFullPath(DefaultClaudeFolder).TrimEnd(Path.DirectorySeparatorChar), StringComparison.OrdinalIgnoreCase) ? null : full;
+    }
+
+    // On macOS a folder Claude Code has used (the default one, or one with its .claude.json)
+    // may keep its sign-in in the Keychain rather than the file.
+    static bool MayHoldLogin(string file)
+    {
+        if (File.Exists(file)) return true;
+        if (!ClaudeKeychain.Supported || !Path.GetFileName(file).Equals(".credentials.json", StringComparison.OrdinalIgnoreCase)) return false;
+        string folder = Path.GetDirectoryName(file)!;
+        return Directory.Exists(folder) && (ClaudeFolderVariable(folder) == null || File.Exists(Path.Combine(folder, ".claude.json")));
+    }
 
     // Default client folders, then auth files in dot-folders of home and ~/.config.
     static IEnumerable<string> CredentialLocations()
@@ -103,9 +121,19 @@ public static partial class Providers
     static Login? OpenLogin(string file) => Path.GetFileName(file).ToLowerInvariant() switch
     {
         "auth.json" => OpenCodexLogin(file, LoadDocument(file)),
-        ".credentials.json" => OpenClaudeLogin(file, LoadDocument(file)),
+        ".credentials.json" => OpenClaudeLogin(file, LoadClaudeDocument(file)),
         _ => null
     };
+
+    // Claude Code on macOS reads the Keychain item first and the file only as a fallback.
+    static JsonObject LoadClaudeDocument(string file)
+    {
+        if (!ClaudeKeychain.Supported || ClaudeKeychain.Read(Path.GetDirectoryName(file)!) is not { } stored)
+            return LoadDocument(file);
+        if (stored.Length > CredentialFileLimit)
+            throw new InvalidDataException();
+        return JsonNode.Parse(stored) as JsonObject ?? throw new InvalidDataException();
+    }
 
     static Login? OpenCodexLogin(string file, JsonObject document)
     {

@@ -52,8 +52,10 @@ public readonly record struct PopupAnchor(PixelRect Area, PixelRect Screen, Pixe
     }
 
     // Without an icon position, the edge where a panel reserves space; bottom if none does.
+    // macOS status items are always in the menu bar at the top, wherever the Dock sits.
     ScreenEdge PanelEdge()
     {
+        if (OperatingSystem.IsMacOS()) return ScreenEdge.Top;
         var reserved = new[] { (Screen.Bottom - Area.Bottom, ScreenEdge.Bottom), (Area.Y - Screen.Y, ScreenEdge.Top), (Area.X - Screen.X, ScreenEdge.Left), (Screen.Right - Area.Right, ScreenEdge.Right) };
         var widest = reserved.MaxBy(r => r.Item1);
         return widest.Item1 > 0 ? widest.Item2 : ScreenEdge.Bottom;

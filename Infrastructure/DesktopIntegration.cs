@@ -28,6 +28,8 @@ internal static class DesktopIntegration
     {
         get
         {
+            // macOS scales the image to the 18 pt menu bar: 36 px on Retina displays.
+            if (OperatingSystem.IsMacOS()) return 36;
             if (!OperatingSystem.IsWindows()) return 32;
             uint dpi = GetDpiForWindow(FindWindow("Shell_TrayWnd", null));
             return Math.Max(16, GetSystemMetricsForDpi(49, dpi == 0 ? (uint)UiMetrics.BaseDpi : dpi));

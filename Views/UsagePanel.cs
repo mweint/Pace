@@ -95,7 +95,7 @@ public sealed class UsagePanel : WidgetWindow
         Height = Math.Min(rows.DesiredSize.Height + UiMetrics.ToolbarHeight + 2 * UiMetrics.WindowBorderWidth, AvailableHeight);
         if (IsVisible)
         {
-            entranceTarget = Anchor.Place(new Size(Width, Height), RenderScaling);
+            entranceTarget = Anchor.Place(new Size(Width, Height), DesktopScaling);
             if (!entrance.IsRunning) Position = entranceTarget;
         }
     }
@@ -118,7 +118,7 @@ public sealed class UsagePanel : WidgetWindow
         entranceTarget = Position;
         bool animate = !IsVisible && Motion.Enabled;
         FrameOpacity = animate ? 0 : 1;
-        Position = Anchor.Slide(entranceTarget, animate && newSession ? Motion.SlideOffset(FrameOpacity, RenderScaling) : 0);
+        Position = Anchor.Slide(entranceTarget, animate && newSession ? Motion.SlideOffset(FrameOpacity, DesktopScaling) : 0);
         Show(); Activate();
         // Returning from a page restores native focus, not keyboard navigation.
         // Clear retained cues before showing the reused footer again.
@@ -127,7 +127,7 @@ public sealed class UsagePanel : WidgetWindow
         if (animate) entrance.Start(newSession ? Motion.FadeMilliseconds : Motion.NavigationFadeMilliseconds, t =>
         {
             FrameOpacity = t;
-            Position = Anchor.Slide(entranceTarget, newSession ? Motion.SlideOffset(FrameOpacity, RenderScaling) : 0);
+            Position = Anchor.Slide(entranceTarget, newSession ? Motion.SlideOffset(FrameOpacity, DesktopScaling) : 0);
         }, ease: newSession ? Motion.EaseOut : Motion.Lead);
     }
     public void Dismiss(bool navigation = false)
@@ -140,7 +140,7 @@ public sealed class UsagePanel : WidgetWindow
         entrance.Start(navigation ? Motion.NavigationFadeMilliseconds : Motion.FadeMilliseconds, t =>
         {
             FrameOpacity = from * (1 - t);
-            Position = Anchor.Slide(entranceTarget, !navigation ? Motion.SlideOffset(FrameOpacity, RenderScaling) : 0);
+            Position = Anchor.Slide(entranceTarget, !navigation ? Motion.SlideOffset(FrameOpacity, DesktopScaling) : 0);
         }, () =>
         {
             // Stay transparent while hidden so a reshow never presents a stale opaque frame.

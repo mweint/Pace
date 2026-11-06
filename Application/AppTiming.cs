@@ -15,4 +15,6 @@ internal static class AppTiming
     public const int SignInStopGraceMilliseconds = 3000, SignInOutputGraceMilliseconds = 2000;
     // An expired saved sign-in is renewed through the official CLI, retried at most this often.
     public const int SignInRenewalTimeoutMilliseconds = 30_000, SignInRenewalRetryMilliseconds = 10 * 60 * 1000;
+    // Claude Code allows the macOS Keychain the same time to answer.
+    public const int KeychainReadTimeoutMilliseconds = 10_000;
 }

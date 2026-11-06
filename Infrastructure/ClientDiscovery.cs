@@ -17,9 +17,7 @@ internal static class ClientDiscovery
                 yield return Path.Combine(home, ".claude", "local", "claude");
             foreach (string directory in (Environment.GetEnvironmentVariable("PATH") ?? "").Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries))
                 yield return Path.Combine(directory, name);
-            // A desktop session's PATH often omits user package-manager folders that a shell adds.
-            foreach (string directory in new[] { Path.Combine(home, ".npm-global", "bin"), Path.Combine(home, ".volta", "bin"), Path.Combine(home, ".bun", "bin"),
-                Path.Combine(home, ".local", "share", "pnpm"), "/usr/local/bin", "/usr/bin", "/opt/homebrew/bin", Path.Combine("/home", "linuxbrew", ".linuxbrew", "bin") })
+            foreach (string directory in PackageFolders())
                 yield return Path.Combine(directory, name);
             yield break;
         }
@@ -51,6 +49,15 @@ internal static class ClientDiscovery
         foreach (string root in new[] { Path.Combine(local, "Programs", "OpenAI", "Codex"), Path.Combine(local, "OpenAI", "Codex") }.Concat(PackageRoots()))
             foreach (string candidate in BundledCodexCandidates(root))
                 yield return candidate;
+    }
+
+    // Outside Windows: a desktop session's PATH often omits user package-manager folders that a shell adds.
+    internal static string[] PackageFolders()
+    {
+        string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        return [Path.Combine(home, ".npm-global", "bin"), Path.Combine(home, ".volta", "bin"), Path.Combine(home, ".bun", "bin"),
+            Path.Combine(home, ".local", "share", "pnpm"), Path.Combine(home, "Library", "pnpm"), "/usr/local/bin", "/usr/bin", "/opt/homebrew/bin",
+            Path.Combine("/home", "linuxbrew", ".linuxbrew", "bin")];
     }
 
     internal static IEnumerable<string> BundledCodexCandidates(string root)

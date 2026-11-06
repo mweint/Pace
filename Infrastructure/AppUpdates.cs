@@ -20,11 +20,18 @@ public sealed class AppUpdates
     public bool Busy => busy;
     public bool Notify => Available is { } release && settings.DismissedUpdateVersion != release.Version;
     public bool Ready => Available is { } release && UpdateInstaller.ReadyVersion == release.Version;
-    // Windows installs updates itself; elsewhere Pace links to the release, as
-    // self-contained Linux apps outside a package manager usually do.
+    // Windows installs updates itself; elsewhere Pace links to the release, as self-contained
+    // Linux and unsigned macOS apps outside a package manager usually do.
     public static bool SelfInstalls => OperatingSystem.IsWindows();
-    static string? PackageName => System.Runtime.InteropServices.RuntimeInformation.OSArchitecture != System.Runtime.InteropServices.Architecture.X64 ? null
-        : OperatingSystem.IsWindows() ? "Pace-win-x64.zip" : OperatingSystem.IsLinux() ? "Pace-linux-x64.tar.gz" : null;
+    internal static string? PackageName => System.Runtime.InteropServices.RuntimeInformation.OSArchitecture switch
+    {
+        System.Runtime.InteropServices.Architecture.X64 when OperatingSystem.IsWindows() => "Pace-win-x64.zip",
+        System.Runtime.InteropServices.Architecture.X64 when OperatingSystem.IsLinux() => "Pace-linux-x64.tar.gz",
+        System.Runtime.InteropServices.Architecture.X64 when OperatingSystem.IsMacOS() => "Pace-osx-x64.tar.gz",
+        // An Apple silicon Mac reports Arm64 even when an Intel build runs under Rosetta.
+        System.Runtime.InteropServices.Architecture.Arm64 when OperatingSystem.IsMacOS() => "Pace-osx-arm64.tar.gz",
+        _ => null
+    };
     public Uri? ReleasePage => Available is { } release ? new($"https://github.com/mweint/Pace/releases/tag/{Uri.EscapeDataString(release.Version)}") : null;
     public static string CurrentVersion => typeof(AppUpdates).Assembly.GetName().Version?.ToString(3) ?? "0.1.0";
     public AppUpdates(Settings settings) : this(settings, network, settings.Save) { }

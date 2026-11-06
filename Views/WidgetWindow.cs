@@ -53,7 +53,7 @@ public class WidgetWindow : Window
     {
         var screen = Screens.ScreenFromPoint(Anchor.IsEmpty ? Position : Anchor.Area.Center) ?? Screens.Primary;
         if (Anchor.IsEmpty && screen != null) Anchor = PopupAnchor.For(screen);
-        if (!Anchor.IsEmpty) Position = Anchor.Place(new Size(Width, Height), screen?.Scaling ?? RenderScaling);
+        if (!Anchor.IsEmpty) Position = Anchor.Place(new Size(Width, Height), screen?.Scaling ?? DesktopScaling);
     }
-    protected double AvailableHeight => (!Anchor.IsEmpty ? Anchor.Area.Height : Screens.Primary?.WorkingArea.Height ?? 900) / RenderScaling - UiMetrics.ScreenHeightReserve;
+    protected double AvailableHeight => (!Anchor.IsEmpty ? Anchor.Area.Height : Screens.Primary?.WorkingArea.Height ?? 900) / DesktopScaling - UiMetrics.ScreenHeightReserve;
 }

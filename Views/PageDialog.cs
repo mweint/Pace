@@ -55,5 +55,5 @@ public abstract class PageDialog : WidgetWindow
             if (!all) MoveToFrame();
         }, () => { allowClose = true; Close(); completed(); }, Motion.EaseOut);
     }
-    void MoveToFrame() => Position = Anchor.Slide(fadeAnchor, Motion.SlideOffset(FrameOpacity, RenderScaling));
+    void MoveToFrame() => Position = Anchor.Slide(fadeAnchor, Motion.SlideOffset(FrameOpacity, DesktopScaling));
 }

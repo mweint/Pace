@@ -16,7 +16,7 @@ internal static class UpdateChecks
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(JsonSerializer.Serialize(new
             {
                 tag_name = Version, draft = false, prerelease = false,
-                assets = new[] { "Pace-win-x64.zip", "Pace-linux-x64.tar.gz" }.Select(name =>
+                assets = new[] { "Pace-win-x64.zip", "Pace-linux-x64.tar.gz", "Pace-osx-arm64.tar.gz", "Pace-osx-x64.tar.gz" }.Select(name =>
                     new { name, browser_download_url = $"https://{Host}/mweint/Pace/releases/download/{Version}/{name}", digest = "sha256:" + new string('0', 64) })
             })) });
         }
@@ -42,6 +42,9 @@ internal static class UpdateChecks
         else if (OperatingSystem.IsLinux())
             check(updates.Notify && updates.Available?.Download.AbsolutePath.EndsWith("/Pace-linux-x64.tar.gz") == true && !updates.Ready &&
                 updates.ReleasePage?.AbsoluteUri == "https://github.com/mweint/Pace/releases/tag/v99.1.0", "Linux notifies about its own package and links to the release");
+        else if (OperatingSystem.IsMacOS())
+            check(updates.Notify && updates.Available?.Download.AbsolutePath.EndsWith("/" + AppUpdates.PackageName) == true && !updates.Ready &&
+                AppUpdates.PackageName?.StartsWith("Pace-osx-") == true && !AppUpdates.SelfInstalls, "macOS notifies about the package for its processor and links to the release");
         else check(updates.Available == null, "Platforms without a package do not offer updates");
         handler.Fail = true; await updates.Check();
         check(!updates.Busy && updates.Status.Contains("Try again"), "Update failures leave a retryable state");

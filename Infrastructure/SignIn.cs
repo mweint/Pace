@@ -28,14 +28,17 @@ public static class SignIn
             settings.ExtraCredentialPaths.Add(file);
         settings.Save();
         var start = Command(executable, service == Services.Claude ? ClaudeLogin : CodexLogin, LoginArguments(service));
-        start.Environment[service == Services.Claude ? "CLAUDE_CONFIG_DIR" : "CODEX_HOME"] = folder;
+        if (service != Services.Claude) start.Environment["CODEX_HOME"] = folder;
+        // Named as Renew names it, so macOS stores the sign-in under the Keychain item Pace reads.
+        else if (Providers.ClaudeFolderVariable(folder) is { } named) start.Environment["CLAUDE_CONFIG_DIR"] = named;
         // This login is for a subscription, not an inherited API-key or managed-token session.
         foreach (string variable in service == Services.Claude ? ClaudeTokenVariables : CodexTokenVariables)
             start.Environment.Remove(variable);
         try
         {
             await Run(start, OperatingSystem.IsWindows() ? null : link, cancel);
-            var account = Providers.ReadAccount(file) ?? throw new InvalidOperationException("Sign-in finished without a readable account. Please try again.");
+            // On macOS this asks the Keychain, which can wait for the user to unlock it.
+            var account = await Task.Run(() => Providers.ReadAccount(file)) ?? throw new InvalidOperationException("Sign-in finished without a readable account. Please try again.");
             settings.RestoreAccount(account);
             settings.Save();
         }
@@ -54,10 +57,8 @@ public static class SignIn
         if (ClientDiscovery.Find(Services.Claude) is not { } executable)
             return;
         var start = Command(executable, ClaudeDoctor, "doctor");
-        // The default folder keeps Claude Code's own settings location; other folders are named.
-        string folder = Path.GetFullPath(Path.GetDirectoryName(credentialFile)!).TrimEnd(Path.DirectorySeparatorChar);
-        if (!folder.Equals(Path.GetFullPath(Providers.DefaultClaudeFolder).TrimEnd(Path.DirectorySeparatorChar), StringComparison.OrdinalIgnoreCase))
-            start.Environment["CLAUDE_CONFIG_DIR"] = folder;
+        if (Providers.ClaudeFolderVariable(Path.GetDirectoryName(credentialFile)!) is { } named)
+            start.Environment["CLAUDE_CONFIG_DIR"] = named;
         foreach (string variable in ClaudeTokenVariables)
             start.Environment.Remove(variable);
         using var limit = new CancellationTokenSource(AppTiming.SignInRenewalTimeoutMilliseconds);
@@ -91,8 +92,14 @@ public static class SignIn
             start.ArgumentList.Add($"$ErrorActionPreference = 'Stop'; & {literal} {shellArguments}; exit $LASTEXITCODE");
         }
         else
+        {
             foreach (string argument in arguments)
                 start.ArgumentList.Add(argument);
+            // Apps started from a desktop (every app on macOS) get a shorter PATH than a shell, so an
+            // npm launcher could not find node. Package managers keep node beside it or in their folders.
+            start.Environment["PATH"] = string.Join(Path.PathSeparator, new[] { Path.GetDirectoryName(executable)!, Environment.GetEnvironmentVariable("PATH") ?? "" }
+                .Concat(ClientDiscovery.PackageFolders()).Where(folder => folder.Length > 0).Distinct());
+        }
         return start;
     }
 

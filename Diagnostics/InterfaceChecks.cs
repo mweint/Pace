@@ -271,7 +271,7 @@ internal static class InterfaceChecks
         check(settingsIcon.ShowsFocusOutline, "Overview footer retains focus cues for deliberate keyboard navigation");
         var page = new AccountsDialog(demo, new Settings(), () => { }, persist: () => { });
         navigation.Show(page);
-        check(page.Position == page.Anchor.Slide(page.Anchor.Place(new Size(page.Width, page.Height), page.RenderScaling), Motion.SlideOffset(0, page.RenderScaling)), "Page entry starts at the full slide offset before its first frame");
+        check(page.Position == page.Anchor.Slide(page.Anchor.Place(new Size(page.Width, page.Height), page.DesktopScaling), Motion.SlideOffset(0, page.DesktopScaling)), "Page entry starts at the full slide offset before its first frame");
         await Task.Delay(60);
         check(page.IsVisible && page.FrameOpacity > .4 && page.FrameOpacity < 1 && panel.IsVisible, "Separate pages enter over the overview");
         check(panel.FrameOpacity == 1, "The overview stays opaque under the entering page so the desktop never shows through");
@@ -290,8 +290,8 @@ internal static class InterfaceChecks
         navigation.Show(interrupted); await Task.Delay(60);
         interrupted.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape });
         await Task.Delay(60);
-        var interruptedAnchor = interrupted.Anchor.Place(new Size(interrupted.Width, interrupted.Height), interrupted.RenderScaling);
-        check(interrupted.Position == interrupted.Anchor.Slide(interruptedAnchor, Motion.SlideOffset(interrupted.FrameOpacity, interrupted.RenderScaling)), "Reversing page entry uses the fixed anchor without adding a second slide offset");
+        var interruptedAnchor = interrupted.Anchor.Place(new Size(interrupted.Width, interrupted.Height), interrupted.DesktopScaling);
+        check(interrupted.Position == interrupted.Anchor.Slide(interruptedAnchor, Motion.SlideOffset(interrupted.FrameOpacity, interrupted.DesktopScaling)), "Reversing page entry uses the fixed anchor without adding a second slide offset");
         await Task.Delay((int)Motion.NavigationFadeMilliseconds + 50);
         settingsIcon.Focus(NavigationMethod.Tab);
         panel.Dismiss(); panel.OpenNearTray(false);

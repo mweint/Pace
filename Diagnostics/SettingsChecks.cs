@@ -7,6 +7,13 @@ internal static class SettingsChecks
         Check(StartupRegistration.ExecLine("/opt/Pace/Pace") == "\"/opt/Pace/Pace\"" &&
             StartupRegistration.ExecLine(@"/opt/a b/$x`\""100%/Pace") == @"""/opt/a b/\\$x\\`\\\\\\""100%%/Pace""",
             "Autostart entries quote the executable path for the Desktop Entry Exec key");
+        const string bundled = "/Applications/A & <B>.app/Contents/MacOS/Pace";
+        using (var reader = System.Xml.XmlReader.Create(new StringReader(StartupRegistration.LaunchAgent(bundled)), new() { DtdProcessing = System.Xml.DtdProcessing.Ignore }))
+        {
+            var agent = System.Xml.Linq.XDocument.Load(reader);
+            Check(agent.Descendants("array").Single().Element("string")?.Value == bundled && agent.Descendants("string").First().Value == StartupRegistration.LaunchAgentLabel,
+                "macOS launch agents are valid property lists that escape the executable path");
+        }
         string root = Path.Combine(Path.GetTempPath(), "pace-migration-" + Guid.NewGuid().ToString("N"));
         string legacy = Path.Combine(root, "legacy"), current = Path.Combine(root, "current");
         string oldCredential = Path.Combine(legacy, "accounts", "sample", "auth.json");
